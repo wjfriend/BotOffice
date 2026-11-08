@@ -22,6 +22,7 @@ from .agent.builtin_tools import register_browser_tools, register_tarsier_tools
 from .agent.runtime import AgentRuntime
 from .agent.tools import ToolRegistry
 from .bus import EventBus
+from .external.ingest import BusIngest
 from .llm.client import LLMClient
 from .llm.providers import ProviderRegistry
 from .llm.router import ModelRouter
@@ -57,6 +58,7 @@ class OfficeContext:
         self.router = ModelRouter(self.providers, self.client)
         self.runtime = AgentRuntime(self.router, self.tools, self.memory, self.bus)
         self.board = TaskBoard(self.bus)
+        self.ingest = BusIngest(self)
         self.orchestrator = Orchestrator(
             self.roles, self.office, self.runtime, self.memory, self.bus
         )
@@ -332,6 +334,22 @@ def create_app(context: OfficeContext | None = None) -> FastAPI:
         )
         ctx.hire(role)
         return role.as_dict()
+
+    @app.post("/api/bus/events")
+    async def bus_events(payload: dict) -> dict:
+        """Entry point for CLI hooks (Claude Code, Codex, ...).
+
+        The hook posts one small JSON object and never waits for a reply, so
+        this must stay fast: no model calls, no disk writes.
+        """
+        try:
+            return ctx.ingest.handle(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/bus/agents")
+    async def bus_agents() -> dict:
+        return {"agents": ctx.ingest.agents()}
 
     @app.delete("/api/roles/{role_id}")
     async def delete_role(role_id: str) -> dict:

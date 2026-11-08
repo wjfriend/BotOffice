@@ -127,6 +127,13 @@ def main() -> int:
     server = BackgroundServer(port)
     server.start()
 
+    # Hook scripts read this to find the hub without any configuration.
+    try:
+        (ROOT / "data").mkdir(parents=True, exist_ok=True)
+        (ROOT / "data" / "hub.port").write_text(str(port), encoding="utf-8")
+    except OSError:
+        pass
+
     api = OfficeApi(f"http://127.0.0.1:{port}")
     bridge = Bridge()
     office = CallbackOffice(BackgroundCaller(api, bridge.result.emit, bridge.error.emit), bridge)
