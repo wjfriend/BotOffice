@@ -2,6 +2,57 @@
 
 ---
 
+## 2026-11-08（第五轮）— 英文 UI、GrokBot 侧栏、体素小人、稳定性
+
+### 改了什么
+
+| 文件 | 变更 |
+|---|---|
+| `botoffice/gui/i18n.py` | **新增**：所有 UI 文案集中一处，当前英文，后续可加语言选择 |
+| `botoffice/gui/main_window.py` | 整体英文化；右侧栏改为「员工列表 + 状态点 + 活动时间线」；新增「Hide/Show panel」折叠按钮；新增「+ Add Me」创建 Boss |
+| `botoffice/gui/scene.py` | 小人改为方块体素风：不同肤色 / 四种发型 / 女性形象（裙子+长发+发饰）；按 runtime 着色工装（Claude Code 橙、Codex 白、OpenCode 黑、Gemini 蓝）；**子 Agent 头顶天线**；名牌改为「昵称-角色-模型缩写」置于头顶；分区地板（工作区/茶水区/休息区）；数字看板；垃圾桶/衣帽架/纸箱/茶几/单人沙发/海报 |
+| `botoffice/orchestrator/roles.py` | 新增 `kind: user`（Boss 就是用户本人） |
+| `botoffice/orchestrator/office.py` | Boss 站在老板办公室，不占员工工位；工位间距 3.5/3.0 |
+| `botoffice/app.py` | 新增 `POST /api/boss`；「第一个员工成为 Lead」排除 Boss |
+| `botoffice/llm/providers.py` | 新增 `short` 字段（名牌上的模型缩写，如 DSF） |
+| `botoffice/gui/client.py` | **改为同步 HTTP**：多线程各自跑 asyncio + httpx 会偶发崩溃 |
+| `botoffice/gui/app.py` | 启动时预加载 httpx 传输栈、关闭循环 GC、退出时 join 线程后 `os._exit` |
+| `botoffice/gui/__main__.py` | **新增**：修复 `python -m botoffice.gui` 无法启动 |
+| `BotOffice.bat` / `scripts/run.bat` | **新增**：Windows 双击启动 |
+| `LICENSE` | **新增**：MIT |
+| `.gitignore` | **新增** |
+
+### 为什么改
+
+用户要求：UI 用英文（以后再加语言选择）；侧栏照 GrokBot 做且可折叠；小人要方块体素风、有女有男；子 Agent 要有天线区分；办公室要有会议室/茶水间/数字看板；Windows 要双击启动；加 MIT 许可并推送到 `wjfriend/BotOffice`。
+
+### 修复的真实 bug
+
+1. **启动器一直不可用**：缺 `botoffice/gui/__main__.py`，`python -m botoffice.gui` 直接报错。
+2. **进程偶发段错误**（约 5/6 概率）：GUI 在多个线程里各自 `asyncio.run` + httpx，CPython 3.14 下会崩溃。
+   处理：客户端改同步 HTTP → 启动时预加载 httpx 传输栈 → 关闭循环 GC → 退出时 join 后 `os._exit`。
+   **压力测试 8/8 次正常退出。**
+3. **窗口绘制崩溃**：`QPainterPath` 裁剪 + 渐变画天空会偶发 access violation，改为按比例在墙面四边形内定位，不用裁剪。
+
+### 如何验证
+
+| 项 | 结果 |
+|---|---|
+| `bash scripts/lint.sh` | LINT OK |
+| `scripts/verify/backend.test.py` | ALL CHECKS PASSED |
+| `scripts/verify/employee.test.py` | ALL CHECKS PASSED |
+| 演示脚本连续 8 次 | 8/8 exit=0 |
+| `BotOffice.bat` 双击 | 进程持续运行 |
+| 推送到 GitHub | `wjfriend/BotOffice` main 分支成功 |
+
+### 未验证
+
+- 未在真实显示器上长时间观察帧率。
+- 外部 CLI 仍未真正接入（只有登记）。
+- 未按 munder-difflin 补齐终端/审批/收件箱等功能。
+
+---
+
 ## 2026-11-08（第四轮）— 画风对齐 GrokBot + Windows 启动器
 
 ### 改了什么

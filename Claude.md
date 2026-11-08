@@ -14,6 +14,9 @@
 
 一句话：**它本身就是一个 Agent（像 Claude Code / Codex 一样能接活），同时能把别的 Agent 拉进同一个办公室组队。**
 
+> **本质定位**：BotOffice 是一个**可视化的 agent harness**——把多个 CLI / LLM Agent 装进一个办公室，
+> 看得见谁在干什么、能把活派下去、能审批、能回溯。
+
 核心流程：
 
 ```
@@ -217,6 +220,7 @@ Python `compileall` + JS `node --check` + JSON 解析，退出码非 0 不得交
 | Tarsier `siddzzzz/Tarsier` | 桌面语义操作（可选依赖 + MCP） |
 | pixtuoid `pixtuoid/pixtuoid` | 终端像素办公室、钩子「永不阻塞宿主」的教训 |
 | Claw3D `iamlukethedev/Claw3D` | three.js 办公室、Agent Bus、公告板/会议室/职级设计 |
+| munder-difflin `HarnessMD/munder-difflin` | **同类产品**：可视化 agent harness。参考其 GUI 信息架构（员工卡片/状态/上下文占用/任务）、每个 Agent 可交互终端、审批队列、自主等级与预算、看板与收件箱。**只参考设计与功能，不复制代码与美术资源。** |
 
 > 只 clone 到本地 `refs/` 阅读，不进 `pyproject.toml` 依赖、不复制代码入主干。
 
