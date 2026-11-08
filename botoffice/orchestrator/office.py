@@ -28,14 +28,14 @@ ROOM = {"min_x": -14.0, "max_x": 14.0, "min_z": -12.0, "max_z": 12.0}
 
 # Each zone: x/z is the near corner, w/d are the extents, color is the floor.
 ZONES = {
-    "meeting": {"x": -9.0, "z": -11.2, "w": 14.0, "d": 5.6, "color": "#c9772f"},
-    "work": {"x": -10.0, "z": -4.6, "w": 17.0, "d": 9.2, "color": "#3f7f6f"},
+    "meeting": {"x": -13.0, "z": -11.4, "w": 12.0, "d": 6.0, "color": "#c9772f"},
+    "work": {"x": -7.0, "z": -4.0, "w": 16.0, "d": 9.0, "color": "#3f7f6f"},
     "boss": {"x": -13.2, "z": 6.0, "w": 5.0, "d": 5.2, "color": "#8a4a4a"},
-    "lounge": {"x": 6.0, "z": 4.6, "w": 7.0, "d": 5.6, "color": "#8a6a52"},
-    "pantry": {"x": 8.4, "z": -9.2, "w": 4.8, "d": 5.0, "color": "#d9d3c6"},
+    "lounge": {"x": 8.0, "z": -10.0, "w": 5.4, "d": 6.0, "color": "#8a6a52"},
+    "pantry": {"x": 8.0, "z": 4.6, "w": 5.4, "d": 6.0, "color": "#d9d3c6"},
 }
 
-MEETING_ROOM_CENTER = (-2.0, -8.2)
+MEETING_ROOM_CENTER = (-7.0, -8.4)
 MEETING_ROOM_RADIUS = 2.6
 
 # The owner (the human using the app) sits in the boss office.
@@ -51,8 +51,8 @@ MAX_WALK_SECONDS = 1.5
 # Desks: two rows inside the work zone. A third row is pushed further back
 # so the office can still hold a large team.
 STEP_X = 3.4
-ROW_Z = (-2.2, 2.4)
-FIRST_DESK_X = -8.4
+ROW_Z = (-3.2, 0.2, 3.6)
+FIRST_DESK_X = -5.4
 DESKS_PER_ROW = 5
 
 

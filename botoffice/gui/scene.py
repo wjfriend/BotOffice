@@ -38,7 +38,13 @@ from PySide6.QtGui import (
 # Isometric tile size. The scene scales these down when the room grows so
 # that every desk stays visible without scrolling.
 BASE_TILE_W = 46.0
-BASE_TILE_H = 34.0
+BASE_TILE_H = 30.0
+# How far the floor shifts sideways with depth. This is what makes the room
+# read as an angled 3/4 view instead of a flat top-down plan.
+OBLIQUE_SHEAR = -0.34
+# The whole floor plane is rotated counter-clockwise a little, while the
+# furniture sprites stay upright.
+ROOM_ROTATION = math.radians(0.0)
 WALK_FRAMES = 5
 
 # Wall height in screen pixels (not scaled: it reads as a fixed ceiling).
@@ -291,54 +297,70 @@ class OfficeScene:
         """How much the characters grow with the room, kept readable."""
         return max(0.8, min(1.55, self.tile_w / BASE_TILE_W))
 
+    def _project_plane(self, x: float, z: float, height: float = 0.0) -> tuple[float, float]:
+        """World -> screen before the camera offset is applied.
+
+        The floor is sheared so it reads as an angled 3/4 view, then the whole
+        plane is rotated slightly. Sprites are drawn upright afterwards, so
+        the furniture keeps its own drawn angle while the room tilts.
+        """
+        sx = (x + z * OBLIQUE_SHEAR) * self.tile_w
+        sy = z * self.tile_h - height
+        cos_a = math.cos(ROOM_ROTATION)
+        sin_a = math.sin(ROOM_ROTATION)
+        return (sx * cos_a - sy * sin_a, sx * sin_a + sy * cos_a)
+
     def to_screen(self, x: float, z: float, height: float = 0.0) -> QPointF:
-        """Three-quarter top-down: x runs right, z runs down and is squashed."""
-        sx = x * self.tile_w + self._offset_x
-        sy = z * self.tile_h - height + self._offset_y
-        return QPointF(sx, sy)
+        rx, ry = self._project_plane(x, z, height)
+        return QPointF(rx + self._offset_x, ry + self._offset_y)
 
     def to_world(self, sx: float, sy: float) -> tuple[float, float]:
-        return (
-            (sx - self._offset_x) / self.tile_w,
-            (sy - self._offset_y) / self.tile_h,
-        )
+        dx = sx - self._offset_x
+        dy = sy - self._offset_y
+        cos_a = math.cos(ROOM_ROTATION)
+        sin_a = math.sin(ROOM_ROTATION)
+        px = dx * cos_a + dy * sin_a
+        py = -dx * sin_a + dy * cos_a
+        z = py / self.tile_h
+        x = px / self.tile_w - z * OBLIQUE_SHEAR
+        return (x, z)
 
     def fit_room(self, width: int, height: int) -> None:
-        """Scale the tiles so the whole room fits the viewport.
-
-        Without this, adding people would push desks off screen. The room
-        shrinks the tiles only as far as a readable minimum.
-        """
+        """Scale the tiles so the whole room fits the viewport."""
         b = self.bounds
-        span_x = b["max_x"] - b["min_x"]
-        span_z = b["max_z"] - b["min_z"]
-        if span_x <= 0 or span_z <= 0:
-            return
-        needed_w = span_x * BASE_TILE_W
-        needed_h = span_z * BASE_TILE_H
-        scale_w = (width - 140) / needed_w if needed_w > 0 else 1.0
-        scale_h = (height - 240) / needed_h if needed_h > 0 else 1.0
+        corners = [
+            (b["min_x"], b["min_z"]), (b["max_x"], b["min_z"]),
+            (b["max_x"], b["max_z"]), (b["min_x"], b["max_z"]),
+        ]
+        points = [self._project_plane(x, z) for x, z in corners]
+        span_w = max(p[0] for p in points) - min(p[0] for p in points)
+        span_h = max(p[1] for p in points) - min(p[1] for p in points)
+        ratio_w = self.tile_w / BASE_TILE_W
+        ratio_h = self.tile_h / BASE_TILE_H
+        base_w = max(1.0, span_w / ratio_w)
+        base_h = max(1.0, span_h / ratio_h)
+        scale_w = (width - 170) / base_w
+        scale_h = (height - 270) / base_h
         scale = min(1.9, scale_w, scale_h)
-        scale = max(scale, 0.42)  # keep avatars readable
+        scale = max(scale, 0.42)
         self.tile_w = BASE_TILE_W * scale
         self.tile_h = BASE_TILE_H * scale
 
     def center_on(self, width: int, height: int) -> None:
-        """Centre the view on the room.
-
-        The offset must be computed from the *unoffset* projection. Reading
-        to_screen() here would fold the previous frame's offset into the new
-        one, which makes the view alternate between two positions every
-        frame instead of settling.
-        """
+        """Centre the view on the room's rotated bounding box."""
         self.fit_room(width, height)
         b = self.bounds
-        centre_x = (b["min_x"] + b["max_x"]) / 2
-        centre_z = (b["min_z"] + b["max_z"]) / 2
-        raw_x = centre_x * self.tile_w
-        raw_y = centre_z * self.tile_h
-        self._offset_x = width / 2 - raw_x
-        self._offset_y = height / 2 - raw_y + 40
+        corners = [
+            (b["min_x"], b["min_z"]), (b["max_x"], b["min_z"]),
+            (b["max_x"], b["max_z"]), (b["min_x"], b["max_z"]),
+        ]
+        points = [self._project_plane(x, z) for x, z in corners]
+        min_x = min(p[0] for p in points)
+        max_x = max(p[0] for p in points)
+        min_y = min(p[1] for p in points)
+        max_y = max(p[1] for p in points)
+        self._offset_x = width / 2 - (min_x + max_x) / 2
+        self._offset_y = height / 2 - (min_y + max_y) / 2 + 30
 
     # -------------------------------------------------------------- drawing
 
@@ -579,18 +601,32 @@ class OfficeScene:
 
     def _draw_wall(self, painter: QPainter, start: tuple[float, float],
                    end: tuple[float, float]) -> None:
+        """A wall standing on one floor edge.
+
+        The wall rises along the edge's normal, not straight up, so it stays
+        at a right angle to the slanted floor.
+        """
         a = self.to_screen(*start)
         b = self.to_screen(*end)
+        dx = b.x() - a.x()
+        dy = b.y() - a.y()
+        length = math.hypot(dx, dy) or 1.0
+        nx, ny = -dy / length, dx / length
+        if ny > 0:
+            nx, ny = -nx, -ny
+
+        top_a = QPointF(a.x() + nx * WALL_H, a.y() + ny * WALL_H)
+        top_b = QPointF(b.x() + nx * WALL_H, b.y() + ny * WALL_H)
+
         painter.setBrush(QBrush(WALL))
         painter.setPen(QPen(WALL_EDGE, 1))
-        painter.drawPolygon(QPolygonF([
-            a, b, QPointF(b.x(), b.y() - WALL_H), QPointF(a.x(), a.y() - WALL_H),
-        ]))
+        painter.drawPolygon(QPolygonF([a, b, top_b, top_a]))
+
         # Lower band, so the wall has a base like a real room.
+        base_a = QPointF(a.x() + nx * 16, a.y() + ny * 16)
+        base_b = QPointF(b.x() + nx * 16, b.y() + ny * 16)
         painter.setBrush(QBrush(WALL_LOWER))
-        painter.drawPolygon(QPolygonF([
-            a, b, QPointF(b.x(), b.y() - 16), QPointF(a.x(), a.y() - 16),
-        ]))
+        painter.drawPolygon(QPolygonF([a, b, base_b, base_a]))
 
     def _draw_window_band(self, painter: QPainter, wall: str, a: float, b: float,
                           coord: float) -> None:

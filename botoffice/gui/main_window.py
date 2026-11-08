@@ -816,6 +816,7 @@ class MainWindow(QMainWindow):
             color_index = AVATAR_COLOR_INDEX.get(role.get("avatar", ""), index)
             kind = role.get("kind", "builtin")
             runtime = (role.get("external") or {}).get("runtime", "")
+            is_new = role["id"] not in self.scene_widget.scene.avatars
             avatar = self.scene_widget.scene.ensure_avatar(
                 role["id"],
                 role.get("name", role["id"]),
@@ -826,7 +827,14 @@ class MainWindow(QMainWindow):
                 tag=self._display_tag(role),
                 rank=role.get("rank") or ("lead" if role.get("leader") else "member"),
             )
-            if avatar.state == "idle" and not avatar.walking:
+            if is_new:
+                # New employees come in through the front door and walk to
+                # their desk, so hiring is visible in the room.
+                entrance = self.scene_widget.scene.entrance
+                avatar.x = float(entrance[0])
+                avatar.z = float(entrance[1])
+                avatar.move_to(float(desk[0]), float(desk[1]))
+            elif avatar.state == "idle" and not avatar.walking:
                 avatar.x = float(desk[0])
                 avatar.z = float(desk[1])
                 avatar.target_x = float(desk[0])
