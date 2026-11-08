@@ -102,9 +102,10 @@ async def main() -> int:
     check("assign produced two messages", len(result.messages) == 2, str(len(result.messages)))
     moves = [e for e in events if e["type"] == "agent.move"]
     check("assign produced a walk", len(moves) >= 1, f"{len(moves)} move events")
+    leader_desk = ctx["offices"].office_for("general").desk_of("alice").as_list()
     check(
-        "worker walked to the leader office door",
-        any(abs(m["to"][0] - 8.0) < 0.01 and abs(m["to"][1] - 6.0) < 0.01 for m in moves),
+        "worker walked to the leader's desk",
+        any(m["to"] == leader_desk for m in moves),
         str([m["to"] for m in moves]),
     )
 

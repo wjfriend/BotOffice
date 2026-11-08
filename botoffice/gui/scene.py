@@ -231,6 +231,8 @@ class OfficeScene:
         self._view_w = 0.0
         self._view_h = 0.0
         self.stats: dict = {"working": 0, "idle": 0, "cost": 0.0}
+        self.zones: dict = {}
+        self.entrance = (0.0, 11.8)
         self.tile_w = BASE_TILE_W
         self.tile_h = BASE_TILE_H
 
@@ -254,6 +256,10 @@ class OfficeScene:
             self.leader_door = tuple(landmarks["leader_office_door"])  # type: ignore[assignment]
         if "bounds" in landmarks:
             self.bounds = dict(landmarks["bounds"])
+        if "zones" in landmarks:
+            self.zones = dict(landmarks["zones"])
+        if "entrance" in landmarks:
+            self.entrance = tuple(landmarks["entrance"])
 
     def ensure_avatar(self, role_id: str, name: str, desk: list[float], color_index: int,
                       kind: str = "builtin", runtime: str = "", tag: str = "",
@@ -348,6 +354,14 @@ class OfficeScene:
         self._draw_furniture(painter)
         for avatar in self._sorted_avatars():
             self._draw_avatar(painter, avatar)
+
+        # A warm wash on top softens every surface without hiding detail.
+        ambient = QLinearGradient(0, 0, 0, height)
+        ambient.setColorAt(0.0, QColor(255, 226, 190, 18))
+        ambient.setColorAt(0.55, QColor(255, 255, 255, 0))
+        ambient.setColorAt(1.0, QColor(24, 30, 44, 26))
+        painter.fillRect(QRectF(0, 0, width, height), QBrush(ambient))
+
         self._draw_overlays(painter)
 
     def _sorted_avatars(self) -> list[Avatar]:
@@ -380,12 +394,16 @@ class OfficeScene:
         return QPolygonF(points)
 
     def _shadow(self, painter: QPainter, x: float, z: float, rx: float, ry: float) -> None:
-        """A soft contact shadow on the floor."""
+        """A soft contact shadow: stacked ellipses fake a blur."""
         centre = self.to_screen(x, z, 1)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QBrush(QColor(0, 0, 0, 46)))
-        painter.drawEllipse(QPointF(centre.x(), centre.y()), rx * self.tile_w / 2,
-                            ry * self.tile_h / 2)
+        for scale, alpha in ((1.20, 16), (1.08, 24), (1.00, 34)):
+            painter.setBrush(QBrush(QColor(0, 0, 0, alpha)))
+            painter.drawEllipse(
+                QPointF(centre.x(), centre.y()),
+                rx * self.tile_w / 2 * scale,
+                ry * self.tile_h / 2 * scale,
+            )
 
     def _box(self, painter: QPainter, x: float, z: float, w: float, d: float,
              height: float, fill: QColor, edge: QColor | None = None) -> None:
@@ -411,69 +429,99 @@ class OfficeScene:
             painter.drawPolygon(QPolygonF([
                 base[index], base[(index + 1) % 4], top[(index + 1) % 4], top[index],
             ]))
-        painter.setBrush(QBrush(fill))
+        top_poly = QPolygonF(top)
+        bounds = top_poly.boundingRect()
+        shade = QLinearGradient(bounds.topLeft(), bounds.bottomRight())
+        shade.setColorAt(0.0, fill.lighter(112))
+        shade.setColorAt(1.0, fill)
+        painter.setBrush(QBrush(shade))
         painter.setPen(QPen(edge, 1))
-        painter.drawPolygon(QPolygonF(top))
+        painter.drawPolygon(top_poly)
 
     # ---------------------------------------------------------------- room
 
     def _draw_room(self, painter: QPainter) -> None:
+        """The fixed floor plan: zones, walls, windows and the entrance."""
         b = self.bounds
         x0, x1 = b["min_x"], b["max_x"]
         z0, z1 = b["min_z"], b["max_z"]
 
         self._draw_floor(painter, x0, x1, z0, z1)
-        self._draw_zones(painter, x0, x1, z0, z1)
+
+        for zone in self.zones.values():
+            self._zone(painter, zone["x"], zone["z"], zone["w"], zone["d"],
+                       QColor(zone["color"]))
+
         self._draw_wall(painter, (x0, z0), (x1, z0))
         self._draw_wall(painter, (x0, z0), (x0, z1))
-        self._draw_window_band(painter, "z", x0 + 6.4, x1 - 6.0, z0)
-        self._draw_window_band(painter, "x", z0 + 1.2, z1 - 4.0, x0)
+        self._draw_window_band(painter, "z", x0 + 1.0, x1 - 1.0, z0)
+        self._draw_window_band(painter, "x", z0 + 1.0, z1 - 1.0, x0)
+        self._draw_digital_board(painter, "x", z0 + 1.4, z0 + 4.2, x0)
+        self._draw_clock(painter, "z", x1 - 3.0, z0)
 
-        # Wall decor.
-        self._draw_digital_board(painter, "z", x0 + 1.4, x0 + 5.8, z0)
-        self._draw_whiteboard(painter, "x", z0 + 5.0, z0 + 7.4, x0)
-        self._draw_bulletin(painter, "x", z0 + 9.2, z0 + 10.8, x0)
-        self._draw_poster(painter, "x", z0 + 2.4, z0 + 3.6, x0)
-        self._draw_clock(painter, "z", x1 - 4.2, z0)
-
-        # Coloured rugs under each desk.
         self._draw_desk_rugs(painter)
 
-        # Kitchen along the left wall.
-        self._draw_kitchen(painter, x0 + 0.9, z0 + 9.6)
-        # Lounge in the front-right corner.
-        self._draw_lounge(painter, x1 - 6.2, z1 - 1.8)
-        # Bookshelf and printer against the back wall.
-        self._draw_bookshelf(painter, x1 - 1.4, z0 + 2.4)
-        self._draw_printer(painter, x1 - 1.6, z0 + 5.4)
+        meeting = self.zones.get("meeting")
+        if meeting:
+            self._draw_meeting_room(painter, meeting)
+        boss = self.zones.get("boss")
+        if boss:
+            self._draw_office_room(painter, boss["x"], boss["z"], boss["w"], boss["d"])
+        pantry = self.zones.get("pantry")
+        if pantry:
+            self._draw_kitchen(painter, pantry["x"] + 0.4, pantry["z"] + 0.6)
+        lounge = self.zones.get("lounge")
+        if lounge:
+            self._draw_lounge(painter, lounge["x"] + 0.6, lounge["z"] + 0.8)
 
-        # Loose props, so the office looks lived in.
-        self._draw_bin(painter, x0 + 2.6, z0 + 5.4)
-        self._draw_bin(painter, x1 - 2.6, z1 - 5.2)
-        self._draw_coat_rack(painter, x0 + 1.4, z1 - 4.6)
-        self._draw_boxes(painter, x0 + 2.8, z0 + 11.8)
-        self._draw_coffee_table(painter, x1 - 5.4, z1 - 3.2)
-        self._draw_armchair(painter, x1 - 3.4, z1 - 4.2)
+        self._draw_entrance(painter)
 
-        # Leader office: a solid light-blue glass room.
-        lx, lz = self.leader_door
-        self._draw_office_room(painter, lx - 1.6, lz - 3.0, 3.2, 4.0)
-
-        # Meeting room.
-        mx, mz = self.meeting_center
-        painter.setBrush(QBrush(QColor("#c08a5a")))
-        painter.setPen(QPen(QColor("#a06f42"), 1))
-        painter.drawPolygon(self._quad(mx - 3.0, mz - 2.0, 6.0, 4.0, 1.0))
-        self._draw_meeting_set(painter, mx, mz)
-
-        # Plants in the corners.
         for px, pz in (
-            (x0 + 1.2, z0 + 1.2),
-            (x0 + 1.2, z1 - 1.5),
-            (x1 - 1.2, z1 - 1.5),
-            (x0 + 3.4, z1 - 1.0),
+            (x0 + 1.4, z0 + 1.4),
+            (x1 - 1.6, z1 - 1.6),
+            (x0 + 1.4, z1 - 1.6),
         ):
             self._draw_plant(painter, px, pz)
+
+    def _draw_meeting_room(self, painter: QPainter, zone: dict) -> None:
+        """The meeting room, closed off with glass walls."""
+        x, z, w, d = zone["x"], zone["z"], zone["w"], zone["d"]
+        self._glass_wall(painter, x, z + d, w, 0.0, "x")
+        self._glass_wall(painter, x + w, z, 0.0, d, "z")
+        self._draw_meeting_set(painter, x + w / 2, z + d / 2)
+
+    def _glass_wall(self, painter: QPainter, x: float, z: float, w: float, d: float,
+                    axis: str) -> None:
+        """A translucent glass panel, used only where glass is intended."""
+        height = 54.0
+        if axis == "x":
+            a = self.to_screen(x, z)
+            b = self.to_screen(x + w, z)
+        else:
+            a = self.to_screen(x, z)
+            b = self.to_screen(x, z + d)
+        painter.setBrush(QBrush(QColor(176, 216, 232, 70)))
+        painter.setPen(QPen(QColor("#f4f7fa"), 2))
+        painter.drawPolygon(QPolygonF([
+            a, b, QPointF(b.x(), b.y() - height), QPointF(a.x(), a.y() - height),
+        ]))
+
+    def _draw_entrance(self, painter: QPainter) -> None:
+        """The door people come in through, on the front edge."""
+        ex, ez = self.entrance
+        left = self.to_screen(ex - 1.7, ez)
+        right = self.to_screen(ex + 1.7, ez)
+        height = 66.0
+        painter.setBrush(QBrush(QColor("#6b4a2c")))
+        painter.setPen(QPen(QColor("#3f2a14"), 2))
+        painter.drawPolygon(QPolygonF([
+            left, right,
+            QPointF(right.x(), right.y() - height),
+            QPointF(left.x(), left.y() - height),
+        ]))
+        painter.setBrush(QBrush(QColor("#c9772f")))
+        painter.setPen(Qt.NoPen)
+        painter.drawPolygon(self._quad(ex - 1.3, ez - 1.4, 2.6, 1.6, 0.8))
 
     def _draw_floor(self, painter: QPainter, x0: float, x1: float, z0: float, z1: float) -> None:
         """Wooden planks running along x."""
@@ -1160,7 +1208,7 @@ class OfficeScene:
         lx, lz = self.leader_door
         label = self.to_screen(lx, lz - 1.0, 74)
         painter.drawText(QRectF(label.x() - 70, label.y() - 10, 140, 18),
-                         Qt.AlignCenter, "Leader's Office")
+                         Qt.AlignCenter, "Boss Office")
 
         self._draw_legend(painter)
 

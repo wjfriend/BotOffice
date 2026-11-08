@@ -273,9 +273,18 @@ screen_y = (x + z) * tile_h / 2 - height
 
 - 深度排序按 `(x + z)` 从小到大绘制。
 - `BASE_TILE_W = 46`、`BASE_TILE_H = 23`；场景按 `fit_room()` 自动缩放，房间再大也能装进窗口。
-- 工位按 `desk_position(index)` 无限分配（每行 6 个），新增员工自动领位。
-- `room_bounds()` 返回地面范围，GUI 据此绘制地板与墙。
-- 地标：`leader_office_door`、`meeting_room_center`、`desks`。
+- 办公室是**固定平面图**（`ROOM` 28×24），不随人数变大；人多时工位往下加行。
+- 分区（`ZONES`）：
+  | 区域 | 位置 | 内容 |
+  |---|---|---|
+  | 会议室 | 上方 | 圆桌 + 玻璃墙 |
+  | 办公区 | 中间 | 两排工位 |
+  | 老板办公室 | 左下 | Boss（用户本人） |
+  | 休息区 | 右下 | 沙发、茶几、落地灯 |
+  | 茶水间 | 右上 | 吧台、冰箱、饮水机 |
+  | 大门 | 下方 | 入口 |
+- 工位按 `desk_position(index)` 分配（每排 5 个，两排，满了继续往后加）。
+- `landmarks()` 返回 `zones`、`entrance`、`desks`、`bounds`，GUI 只按这些数据画。
 
 ---
 

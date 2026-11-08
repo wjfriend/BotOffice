@@ -16,29 +16,44 @@ from dataclasses import dataclass
 
 from .roles import Role
 
-# Landmark anchors. The scene places its meshes on these points.
-LEADER_OFFICE_DOOR = (8.0, 6.0)
-MEETING_ROOM_CENTER = (-5.0, 6.0)
+# Fixed floor plan, in world units. The room never resizes: teams only get
+# more desks, which fill the work area row by row.
+#
+#     meeting room (glass wall)
+#     --------------------------
+#     work area: two rows of desks        pantry (right)
+#     --------------------------
+#     boss office | entrance | lounge
+ROOM = {"min_x": -14.0, "max_x": 14.0, "min_z": -12.0, "max_z": 12.0}
+
+# Each zone: x/z is the near corner, w/d are the extents, color is the floor.
+ZONES = {
+    "meeting": {"x": -9.0, "z": -11.2, "w": 14.0, "d": 5.6, "color": "#c9772f"},
+    "work": {"x": -10.0, "z": -4.6, "w": 17.0, "d": 9.2, "color": "#3f7f6f"},
+    "boss": {"x": -13.2, "z": 6.0, "w": 5.0, "d": 5.2, "color": "#8a4a4a"},
+    "lounge": {"x": 6.0, "z": 4.6, "w": 7.0, "d": 5.6, "color": "#8a6a52"},
+    "pantry": {"x": 8.4, "z": -9.2, "w": 4.8, "d": 5.0, "color": "#d9d3c6"},
+}
+
+MEETING_ROOM_CENTER = (-2.0, -8.2)
 MEETING_ROOM_RADIUS = 2.6
 
-# The owner (the human using the app) stands inside the leader office.
+# The owner (the human using the app) sits in the boss office.
 BOSS_ID = "me"
-BOSS_SPOT = (8.0, 4.2)
+BOSS_SPOT = (-10.7, 8.6)
+
+# Where people come in.
+ENTRANCE = (0.0, 11.4)
 
 WALK_SPEED = 6.0
 MAX_WALK_SECONDS = 1.5
 
-# Desk spacing in world units. Desks form a single line along the x axis:
-# in an isometric view that direction maps to a screen diagonal where the
-# spacing stays wide enough for the figures not to overlap. A row-per-line
-# layout would put them 30 px apart, which is narrower than a figure.
-STEP_X = 3.5
-STEP_Z = 3.0
-
-# The first desk position.
-FIRST_DESK_X = -6.0
-FIRST_DESK_Z = -3.6
-DESKS_PER_ROW = 6
+# Desks: two rows inside the work zone. A third row is pushed further back
+# so the office can still hold a large team.
+STEP_X = 3.4
+ROW_Z = (-2.2, 2.4)
+FIRST_DESK_X = -8.4
+DESKS_PER_ROW = 5
 
 
 @dataclass(frozen=True)
@@ -73,14 +88,18 @@ def walk_seconds(origin: Point, target: Point) -> float:
 
 
 def desk_position(index: int) -> list[float]:
-    """World position of the nth desk. Rows grow as needed, so the count is
-    unlimited."""
+    """World position of the nth desk.
+
+    Two rows fill the work area; later rows continue further back so a large
+    team still fits.
+    """
     row = index // DESKS_PER_ROW
     column = index % DESKS_PER_ROW
-    return [
-        round(FIRST_DESK_X + column * STEP_X, 2),
-        round(FIRST_DESK_Z + row * STEP_Z, 2),
-    ]
+    if row < len(ROW_Z):
+        z = ROW_Z[row]
+    else:
+        z = ROW_Z[-1] + (row - len(ROW_Z) + 1) * 4.0
+    return [round(FIRST_DESK_X + column * STEP_X, 2), round(z, 2)]
 
 
 class Office:
@@ -127,33 +146,18 @@ class Office:
         return {k: list(v) for k, v in self._desks.items()}
 
     def room_bounds(self) -> dict:
-        """The floor rectangle, sized to hold every desk plus the landmarks.
-
-        The GUI draws the room from these numbers, so a bigger office simply
-        means a bigger floor. The leader office and the meeting room are
-        included, otherwise furniture would sit outside the floor.
-        """
-        xs = [pos[0] for pos in self._desks.values()]
-        zs = [pos[1] for pos in self._desks.values()]
-        # Meeting room rug.
-        xs += [MEETING_ROOM_CENTER[0] - 3.0, MEETING_ROOM_CENTER[0] + 3.0]
-        zs += [MEETING_ROOM_CENTER[1] - 2.0, MEETING_ROOM_CENTER[1] + 2.0]
-        # Leader office box (1.5 units each side of the door, 4 deep).
-        xs += [LEADER_OFFICE_DOOR[0] - 1.5, LEADER_OFFICE_DOOR[0] + 1.5]
-        zs += [LEADER_OFFICE_DOOR[1] - 3.0, LEADER_OFFICE_DOOR[1] + 1.0]
-        return {
-            "min_x": round(min(xs) - 2.6, 2),
-            "max_x": round(max(xs) + 2.6, 2),
-            "min_z": round(min(zs) - 2.6, 2),
-            "max_z": round(max(zs) + 2.6, 2),
-        }
+        """The fixed floor rectangle. The plan does not grow with the team."""
+        return dict(ROOM)
 
     def landmarks(self) -> dict:
-        """Anchor points the scene needs."""
+        """Anchor points and zones the scene draws."""
         return {
-            "leader_office_door": list(LEADER_OFFICE_DOOR),
+            "boss_office": list(BOSS_SPOT),
+            "leader_office_door": list(BOSS_SPOT),
             "meeting_room_center": list(MEETING_ROOM_CENTER),
             "meeting_room_radius": MEETING_ROOM_RADIUS,
+            "entrance": list(ENTRANCE),
+            "zones": {key: dict(zone) for key, zone in ZONES.items()},
             "desks": self.all_desks(),
             "bounds": self.room_bounds(),
         }
@@ -162,8 +166,8 @@ class Office:
 class OfficeManager:
     """One office per team.
 
-    Teams are independent: each has its own desks, its own bounds and its
-    own landmarks, so switching team in the GUI switches the whole scene.
+    Teams are independent: each has its own desks and its own scene, so
+    switching team in the GUI switches the whole room.
     """
 
     def __init__(self) -> None:

@@ -84,7 +84,7 @@ def main() -> int:
     ).json()
     check("first employee is lead", first.get("rank") == "lead", str(first.get("rank")))
     check("lead flag is set", first.get("leader") is True)
-    check("lead got the first desk", first.get("desk") == [-6.0, -3.6], str(first.get("desk")))
+    check("lead got the first desk", first.get("desk") == [-8.4, -2.2], str(first.get("desk")))
 
     print("=== 3. the second employee is a member ===")
     second = client.post(
@@ -163,7 +163,7 @@ def main() -> int:
     check("alpha has one employee", len(alpha_status["roles"]) == 1,
           str(len(alpha_status["roles"])))
     check("alpha starts at its own first desk",
-          alpha_status["layout"]["desks"].get("bob2") == [-6.0, -3.6],
+          alpha_status["layout"]["desks"].get("bob2") == [-8.4, -2.2],
           str(alpha_status["layout"]["desks"]))
     check("team list is reported", "alpha" in (alpha_status.get("teams") or []),
           str(alpha_status.get("teams")))

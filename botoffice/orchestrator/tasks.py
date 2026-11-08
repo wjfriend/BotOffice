@@ -26,7 +26,6 @@ from ..agent.state_machine import AgentState, StateMachine
 from ..bus import EventBus
 from ..memory import MemoryStore, private_scope, work_scope
 from .office import (
-    LEADER_OFFICE_DOOR,
     MEETING_ROOM_CENTER,
     OfficeManager,
     Point,
@@ -192,7 +191,8 @@ class Orchestrator:
 
         self.bus.publish("task.created", id=task_id, task=task, leader=leader_id, worker=worker_id)
 
-        await self._walk_to(worker, Point(*LEADER_OFFICE_DOOR), "assign")
+        # The lead is a coworker at a desk, not a room: walk to the desk.
+        await self._walk_to(worker, self._office_for(leader).desk_of(leader.id), "assign")
         machine = self.machine(leader.id)
         machine.to(AgentState.INTERACTING, purpose="assign")
 
