@@ -569,7 +569,7 @@ class OfficeScene:
         # The back row is drawn first so the table hides it.
         for index in range(5):
             cx = table_x + (index + 0.5) * table_w / 5
-            self._sprite(painter, "chair_back", cx, table_z - 0.45, 0.95)
+            self._sprite(painter, "chair_visitor", cx, table_z - 0.45, 0.95)
 
         self._shadow(painter, table_x + table_w / 2, table_z + table_d / 2, 4.0, 1.6)
         self._box(painter, table_x, table_z, table_w, table_d, 20, TABLE, DESK_LEG)
@@ -577,7 +577,7 @@ class OfficeScene:
 
         for index in range(5):
             cx = table_x + (index + 0.5) * table_w / 5
-            self._sprite(painter, "chair_face_down", cx, table_z + table_d + 0.55, 0.95)
+            self._sprite(painter, "chair_visitor", cx, table_z + table_d + 0.55, 0.95)
 
         # A whiteboard at the far right of the room.
         self._sprite(painter, "whiteboard", x + w - 2.4, z + 0.9, 1.8)
@@ -805,7 +805,7 @@ class OfficeScene:
         # The back row is drawn first so the table hides it.
         for index in range(5):
             cx = table_x + (index + 0.5) * table_w / 5
-            self._sprite(painter, "chair_back", cx, table_z - 0.45, 0.95)
+            self._sprite(painter, "chair_visitor", cx, table_z - 0.45, 0.95)
 
         self._shadow(painter, table_x + table_w / 2, table_z + table_d / 2, 4.0, 1.6)
         self._box(painter, table_x, table_z, table_w, table_d, 20, TABLE, DESK_LEG)
@@ -813,7 +813,7 @@ class OfficeScene:
 
         for index in range(5):
             cx = table_x + (index + 0.5) * table_w / 5
-            self._sprite(painter, "chair_face_down", cx, table_z + table_d + 0.55, 0.95)
+            self._sprite(painter, "chair_visitor", cx, table_z + table_d + 0.55, 0.95)
 
         # A whiteboard at the far right of the room.
         self._sprite(painter, "whiteboard", x + w - 2.4, z + 0.9, 1.8)
@@ -1102,7 +1102,7 @@ class OfficeScene:
         self._box(painter, x + 4.85, z + 3.6, 0.35, 2.4, 26, SOFA, SOFA_DARK)
 
         # Round table in the middle of the sofa corner.
-        centre = self.to_screen(x + 3.4, z + 3.0, 16)
+        centre = self.to_screen(x + 3.6, z + 1.4, 16)
         painter.setBrush(QBrush(DESK_LEG))
         painter.setPen(Qt.NoPen)
         painter.drawEllipse(QPointF(centre.x(), centre.y() + 16),
@@ -1178,7 +1178,7 @@ class OfficeScene:
 
         # A desk inside.
         self._sprite(painter, "desk_corner", x + w * 0.5, z + d * 0.55, 2.0)
-        self._sprite(painter, "chair", x + w * 0.5, z + d * 0.78, 1.0)
+        self._sprite(painter, "chair", x + w * 0.5, z + d * 0.82, 1.0)
 
     def _sliding_doors(self, painter: QPainter, x: float, z: float, w: float,
                        height: float) -> None:
@@ -1256,7 +1256,7 @@ class OfficeScene:
                 target_h = desk_pixmap.height() * (target_w / desk_pixmap.width())
                 surface = base.y() - target_h * 0.48
                 self._sprite_at(painter, "monitor", base.x(), surface, 0.95)
-            self._sprite(painter, "chair_face_down", x, z + 0.45, 1.0)
+            self._sprite(painter, "chair_visitor", x, z + 0.45, 1.0)
             return
         self._shadow(painter, x, z + 0.2, 2.2, 1.6)
 
