@@ -177,6 +177,18 @@ def main() -> int:
     print("=== 7. the hook script forwards and maps a CLI payload ===")
     check_hook()
 
+    print("=== 8. a permission request puts the worker in waiting ===")
+    response = client.post(
+        "/api/bus/events",
+        json={
+            "runtime": "claude-code",
+            "agent": "claude-code-1",
+            "event": "permission_request",
+            "message": "allow rm -rf?",
+        },
+    )
+    check("state is waiting", response.json().get("state") == "waiting", str(response.json()))
+
     print()
     if FAILURES:
         print(f"FAILED: {len(FAILURES)} check(s): {FAILURES}")

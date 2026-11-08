@@ -20,6 +20,7 @@ class AgentState(str, Enum):
     WALKING = "walking"
     INTERACTING = "interacting"
     WORKING = "working"
+    WAITING = "waiting"
     MEETING = "meeting"
     RETURNING = "returning"
     OFFLINE = "offline"
@@ -33,12 +34,14 @@ _ALLOWED: dict[AgentState, set[AgentState]] = {
         AgentState.WORKING,
         AgentState.INTERACTING,
         AgentState.MEETING,
+        AgentState.WAITING,
         AgentState.OFFLINE,
     },
     AgentState.WALKING: {
         AgentState.INTERACTING,
         AgentState.MEETING,
         AgentState.WORKING,
+        AgentState.WAITING,
         AgentState.RETURNING,
         AgentState.IDLE,
     },
@@ -47,25 +50,39 @@ _ALLOWED: dict[AgentState, set[AgentState]] = {
         AgentState.WORKING,
         AgentState.WALKING,
         AgentState.MEETING,
+        AgentState.WAITING,
         AgentState.IDLE,
     },
     AgentState.MEETING: {
         AgentState.RETURNING,
         AgentState.WORKING,
         AgentState.INTERACTING,
+        AgentState.WAITING,
         AgentState.IDLE,
     },
     AgentState.WORKING: {
         AgentState.WALKING,
         AgentState.INTERACTING,
         AgentState.MEETING,
+        AgentState.WAITING,
         AgentState.RETURNING,
         AgentState.IDLE,
+        AgentState.OFFLINE,
+    },
+    # Waiting: has work, but is blocked on a person (approval, input).
+    AgentState.WAITING: {
+        AgentState.IDLE,
+        AgentState.WORKING,
+        AgentState.WALKING,
+        AgentState.INTERACTING,
+        AgentState.MEETING,
+        AgentState.RETURNING,
         AgentState.OFFLINE,
     },
     AgentState.RETURNING: {
         AgentState.IDLE,
         AgentState.WORKING,
+        AgentState.WAITING,
         AgentState.WALKING,
     },
     AgentState.OFFLINE: {AgentState.IDLE},

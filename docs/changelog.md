@@ -2,6 +2,32 @@
 
 ---
 
+## 2026-11-08（第十轮）— waiting 状态
+
+### 改了什么
+
+| 文件 | 变更 |
+|---|---|
+| `botoffice/agent/state_machine.py` | 新增 `WAITING` 状态与合法转移 |
+| `botoffice/external/ingest.py` | `permission_request` 映射为 `waiting`（被审批卡住，不是「在聊天」） |
+| `botoffice/gui/scene.py` | 新增黄色状态点与图例项 |
+| `botoffice/gui/main_window.py` / `i18n.py` | 员工计数增加 Waiting |
+| `scripts/verify/bus.test.py` | 新增：审批请求 → waiting |
+
+### 为什么改
+
+用户希望「空闲」和「等着你」能一眼区分，对应 munder-difflin 里的 waiting。
+
+### 如何验证
+
+| 项 | 结果 |
+|---|---|
+| `bash scripts/lint.sh` | LINT OK |
+| `scripts/verify/bus.test.py` | ALL CHECKS PASSED |
+| `scripts/verify/backend.test.py` / `employee.test.py` | ALL CHECKS PASSED |
+
+---
+
 ## 2026-11-08（第九轮）— 会话结束不等于离职
 
 ### 改了什么

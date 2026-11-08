@@ -31,7 +31,7 @@ STRINGS: dict[str, str] = {
     "chat.send": "Send",
     "chat.you": "You",
     # Staff panel.
-    "staff.counts": "Working {working} · Idle {idle} · Offline {offline}",
+    "staff.counts": "Working {working} · Waiting {waiting} · Idle {idle} · Offline {offline}",
     "staff.empty": "The office is empty. Click New Conversation to hire the first employee.",
     "staff.activity": "Activity",
     "staff.no_activity": "No activity yet.",
@@ -41,6 +41,7 @@ STRINGS: dict[str, str] = {
     "state.walking": "Walking",
     "state.interacting": "Talking",
     "state.meeting": "Meeting",
+    "state.waiting": "Waiting",
     "state.returning": "Returning",
     "state.offline": "Offline",
     # Dialog titles.

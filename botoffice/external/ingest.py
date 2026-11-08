@@ -30,7 +30,7 @@ EVENT_TO_STATE = {
     "tool_use": "working",
     "task_complete": "idle",
     "heartbeat": "idle",
-    "permission_request": "interacting",
+    "permission_request": "waiting",
 }
 
 KNOWN_EVENTS = tuple(EVENT_TO_STATE)

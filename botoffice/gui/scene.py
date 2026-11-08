@@ -128,6 +128,7 @@ OWNER_TIE = QColor("#d9a441")
 STATE_COLORS = {
     "idle": QColor("#6fcf97"),
     "working": QColor("#ffb45e"),
+    "waiting": QColor("#f2cd37"),
     "walking": QColor("#5b8fd6"),
     "interacting": QColor("#9b6bd1"),
     "meeting": QColor("#4fb3bf"),
@@ -1168,6 +1169,7 @@ class OfficeScene:
         items = (
             ("idle", "Idle"),
             ("working", "Working"),
+            ("waiting", "Waiting"),
             ("walking", "Walking"),
             ("interacting", "Talking"),
             ("meeting", "Meeting"),

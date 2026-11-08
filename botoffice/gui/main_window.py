@@ -797,10 +797,11 @@ class MainWindow(QMainWindow):
         scene = self.scene_widget.scene
         states = [avatar.state for avatar in scene.avatars.values()]
         working = sum(1 for state in states if state in ACTIVE_STATES)
+        waiting = sum(1 for state in states if state == "waiting")
         idle = sum(1 for state in states if state == "idle")
         offline = sum(1 for state in states if state == "offline")
         self.counts_label.setText(
-            t("staff.counts", working=working, idle=idle, offline=offline)
+            t("staff.counts", working=working, waiting=waiting, idle=idle, offline=offline)
         )
 
         rows = []
@@ -929,7 +930,7 @@ class MainWindow(QMainWindow):
         html = (
             f"<h2 style='color:#ffb45e'>{t('tab.tasks')}</h2>"
             f"<p style='color:#93a0b8'>"
-            f"{t('staff.counts', working=summary.get('total', 0), idle='', offline='')}"
+            f"{t('staff.counts', working=summary.get('total', 0), waiting='', idle='', offline='')}"
             f"</p>"
             + task_html
         )

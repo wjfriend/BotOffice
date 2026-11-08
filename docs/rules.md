@@ -61,6 +61,7 @@ IDLE ──→ WALKING ──→ INTERACTING ──→ RETURNING ──→ IDLE
   │         │            │
   │         └──→ MEETING ┘
   └──→ WORKING ──→ IDLE
+  └──→ WAITING ──→ IDLE      （有活，但在等人：审批 / 输入）
   └──→ OFFLINE
 ```
 
@@ -71,6 +72,7 @@ IDLE ──→ WALKING ──→ INTERACTING ──→ RETURNING ──→ IDLE
 | `WALKING` | 走位中 | 位置插值 + 走路摆动 |
 | `INTERACTING` | 与另一人对话 | 面对面 + 气泡 |
 | `MEETING` | 会议中 | 围坐 |
+| `WAITING` | 有活但在等人（审批/输入） | 黄色状态点 |
 | `RETURNING` | 回座 | 走位 |
 | `OFFLINE` | 离线/未连接 | 灰显 |
 
