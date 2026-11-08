@@ -166,6 +166,10 @@ class Orchestrator:
                 )
         return blocks
 
+    def context_for(self, role, task_id: str | None = None) -> list[tuple[str, str]]:
+        """Public access to the context blocks an agent is allowed to see."""
+        return self._context_blocks(role, task_id)
+
     # ---------------------------------------------------------- interactions
 
     async def assign_task(

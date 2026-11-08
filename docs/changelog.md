@@ -2,6 +2,39 @@
 
 ---
 
+## 2026-11-08（第七轮）— 点员工对话
+
+### 改了什么
+
+| 文件 | 变更 |
+|---|---|
+| `botoffice/app.py` | 新增 `POST /api/agents/{id}/say`：给员工发一句话并拿回回复；外部员工、Boss、没配模型的员工都会被拒绝并说明原因 |
+| `botoffice/orchestrator/tasks.py` | 新增公开方法 `context_for()`，让聊天接口复用同一套记忆上下文 |
+| `botoffice/gui/main_window.py` | 「Chat」页签改为可交互：**点办公室里的任意小人**即打开与他的对话，带输入框与发送按钮 |
+| `botoffice/gui/i18n.py` | 新增聊天相关文案 |
+| `scripts/verify/employee.test.py` | 新增：内部员工能回复、外部员工返回 400 |
+
+### 为什么改
+
+用户选择方案 A（保留 PySide6，移植 munder-difflin 的行为），B 项是「点员工打开他的终端/对话」。
+
+### 如何验证
+
+| 项 | 结果 |
+|---|---|
+| `bash scripts/lint.sh` | LINT OK |
+| `scripts/verify/employee.test.py` | ALL CHECKS PASSED（含对话） |
+| `scripts/verify/backend.test.py` | ALL CHECKS PASSED |
+| `scripts/verify/bus.test.py` | ALL CHECKS PASSED |
+| 演示脚本 | exit=0 |
+
+### 未验证
+
+- 没在真实窗口里手动点过小人验证 UI 交互（只验证了接口与窗口构建）。
+- 外部 CLI 的对话尚未支持（它们由自己的 CLI 驱动）。
+
+---
+
 ## 2026-11-08（第六轮）— Agent Bus：外部 CLI 接入
 
 ### 改了什么

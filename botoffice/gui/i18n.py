@@ -24,6 +24,12 @@ STRINGS: dict[str, str] = {
     "tab.chat": "Chat",
     "tab.memory": "Memory",
     "tab.cost": "Cost",
+    # Chat panel.
+    "chat.no_target": "Click a character in the office to start a conversation.",
+    "chat.with": "Chat with {name}",
+    "chat.placeholder": "Type a message...",
+    "chat.send": "Send",
+    "chat.you": "You",
     # Staff panel.
     "staff.counts": "Working {working} · Idle {idle} · Offline {offline}",
     "staff.empty": "The office is empty. Click New Conversation to hire the first employee.",

@@ -134,6 +134,15 @@ def main() -> int:
     check("three employees", len(status["roles"]) == 3, str(len(status["roles"])))
     check("layout has desks for each", len(status["layout"]["desks"]) == 3)
 
+    print("=== 8. you can talk to an internal employee ===")
+    reply = client.post("/api/agents/worker/say", json={"text": "status?"}).json()
+    check("reply comes back", bool(reply.get("text")), str(reply)[:90])
+    check("reply is from the worker", reply.get("from") == "worker", str(reply.get("from")))
+
+    print("=== 9. external employees reject direct messages ===")
+    bad = client.post("/api/agents/claude/say", json={"text": "hi"})
+    check("external returns 400", bad.status_code == 400, str(bad.status_code))
+
     if FAILURES:
         print(f"\n{len(FAILURES)} CHECK(S) FAILED")
         return 1

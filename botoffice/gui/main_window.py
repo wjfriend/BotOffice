@@ -318,6 +318,7 @@ class MainWindow(QMainWindow):
         self.providers: list[dict] = []
         self.chat_lines: list[tuple[str, str]] = []
         self.activity_lines: list[tuple[str, str]] = []
+        self.selected_agent: str | None = None
 
         self._build_ui()
         self.refresh_all()
@@ -403,6 +404,7 @@ class MainWindow(QMainWindow):
         self.splitter = QSplitter(Qt.Horizontal)
         self.scene_widget = SceneWidget()
         self.scene_widget.drop_requested.connect(self.on_drop)
+        self.scene_widget.avatar_clicked.connect(self.on_avatar_clicked)
         self.splitter.addWidget(self.scene_widget)
 
         self.panel = QWidget()
@@ -449,20 +451,55 @@ class MainWindow(QMainWindow):
         self.board_view = QTextEdit()
         self.board_view.setReadOnly(True)
         self.providers_list = QListWidget()
-        self.chat_view = QTextEdit()
-        self.chat_view.setReadOnly(True)
         self.memory_list = QListWidget()
         self.costs_list = QListWidget()
-        for widget in (self.board_view, self.providers_list, self.chat_view,
+        for widget in (self.board_view, self.providers_list,
                        self.memory_list, self.costs_list):
             widget.setStyleSheet(
                 "background:#151a26;border:none;color:#e6ebf5;font-size:13px;"
             )
 
+        # Chat page: click a character in the office to talk to it.
+        chat_page = QWidget()
+        chat_layout = QVBoxLayout(chat_page)
+        chat_layout.setContentsMargins(8, 8, 8, 8)
+        chat_layout.setSpacing(6)
+
+        self.chat_header = QLabel(t("chat.no_target"))
+        self.chat_header.setWordWrap(True)
+        self.chat_header.setStyleSheet("color:#93a0b8;font-size:12px;")
+        chat_layout.addWidget(self.chat_header)
+
+        self.chat_view = QTextEdit()
+        self.chat_view.setReadOnly(True)
+        self.chat_view.setStyleSheet(
+            "background:#151a26;border:none;color:#e6ebf5;font-size:13px;"
+        )
+        chat_layout.addWidget(self.chat_view, 1)
+
+        row = QHBoxLayout()
+        row.setSpacing(6)
+        self.chat_input = QLineEdit()
+        self.chat_input.setPlaceholderText(t("chat.placeholder"))
+        self.chat_input.returnPressed.connect(self.on_send)
+        self.chat_input.setStyleSheet(
+            "background:#151a26;border:1px solid #2e3950;border-radius:8px;"
+            "color:#e6ebf5;padding:6px 8px;"
+        )
+        self.btn_send = QPushButton(t("chat.send"))
+        self.btn_send.setStyleSheet(
+            "background:#ffb45e;color:#241a08;border:none;border-radius:8px;"
+            "padding:6px 14px;font-weight:600;"
+        )
+        self.btn_send.clicked.connect(self.on_send)
+        row.addWidget(self.chat_input, 1)
+        row.addWidget(self.btn_send)
+        chat_layout.addLayout(row)
+
         self.tabs.addTab(staff_page, t("tab.staff"))
         self.tabs.addTab(self.board_view, t("tab.tasks"))
         self.tabs.addTab(self.providers_list, t("tab.platforms"))
-        self.tabs.addTab(self.chat_view, t("tab.chat"))
+        self.tabs.addTab(chat_page, t("tab.chat"))
         self.tabs.addTab(self.memory_list, t("tab.memory"))
         self.tabs.addTab(self.costs_list, t("tab.cost"))
 
@@ -598,6 +635,48 @@ class MainWindow(QMainWindow):
         self.chat_view.append(
             f"<b style='color:#ffb45e'>{html_lib.escape(who)}</b>: {html_lib.escape(text)}"
         )
+
+    # ---------------------------------------------------------------- chat
+
+    def on_avatar_clicked(self, role_id: str) -> None:
+        """The user clicked a character: open a conversation with them."""
+        self.selected_agent = role_id
+        self.chat_header.setText(t("chat.with", name=self._tag_for(role_id)))
+        self.tabs.setCurrentIndex(self.TAB_CHAT)
+        self.chat_input.setFocus()
+
+    def _tag_for(self, role_id: str) -> str:
+        for role in self.roles:
+            if role.get("id") == role_id:
+                return self._display_tag(role)
+        return role_id
+
+    def on_send(self) -> None:
+        text = self.chat_input.text().strip()
+        if not text:
+            return
+        if not self.selected_agent:
+            self.append_chat(t("msg.system"), t("chat.no_target"))
+            return
+        self.chat_input.clear()
+        self.append_chat(t("chat.you"), text)
+        self.office.post(
+            f"/api/agents/{self.selected_agent}/say",
+            {"text": text},
+            self.on_agent_reply,
+        )
+
+    def on_agent_reply(self, result: Any) -> None:
+        if not isinstance(result, dict):
+            return
+        if result.get("error"):
+            self.append_chat(t("msg.system"), result["error"])
+            return
+        self.append_chat(
+            self._display_name(result.get("from", "")),
+            result.get("text", ""),
+        )
+        self.refresh_costs()
 
     # -------------------------------------------------------------- refresh
 

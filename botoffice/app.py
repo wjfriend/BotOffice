@@ -154,6 +154,10 @@ class EmployeeIn(BaseModel):
     avatar: str = ""
 
 
+class SayIn(BaseModel):
+    text: str
+
+
 class AssignIn(BaseModel):
     leader_id: str
     worker_id: str
@@ -350,6 +354,39 @@ def create_app(context: OfficeContext | None = None) -> FastAPI:
     @app.get("/api/bus/agents")
     async def bus_agents() -> dict:
         return {"agents": ctx.ingest.agents()}
+
+    @app.post("/api/agents/{agent_id}/say")
+    async def say(agent_id: str, payload: SayIn) -> dict:
+        """Send one message to an employee and return their reply.
+
+        Only internal agents can answer: external workers are driven by their
+        own CLI, and the owner is the user themselves.
+        """
+        try:
+            role = ctx.roles.get(agent_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+        text = payload.text.strip()
+        if not text:
+            raise HTTPException(status_code=400, detail="text is required")
+        if role.kind == "user":
+            raise HTTPException(status_code=400, detail="this is you")
+        if role.kind == "external":
+            raise HTTPException(
+                status_code=400,
+                detail="external agents are driven by their own CLI; messages are not supported yet",
+            )
+        if not role.llm.primary:
+            raise HTTPException(status_code=400, detail=f"{role.id} has no model configured")
+
+        ctx.bus.publish("agent.say", id=role.id, text=text)
+        turn = await ctx.runtime.run(
+            role,
+            text,
+            context_blocks=ctx.orchestrator.context_for(role),
+        )
+        return {"from": role.id, "text": turn.text}
 
     @app.delete("/api/roles/{role_id}")
     async def delete_role(role_id: str) -> dict:
