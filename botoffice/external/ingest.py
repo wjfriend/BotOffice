@@ -20,9 +20,13 @@ from ..orchestrator.roles import KIND_EXTERNAL, Role, RoleScope
 _SLUG = re.compile(r"[^a-z0-9]+")
 
 # Which visible state an incoming bus event puts the worker in.
+#
+# A finished CLI session is not a departure: the employee stays in the
+# office and waits for the next task, exactly like a real coworker. Only the
+# user removing them takes someone out of the room.
 EVENT_TO_STATE = {
     "session_start": "idle",
-    "session_end": "offline",
+    "session_end": "idle",
     "tool_use": "working",
     "task_complete": "idle",
     "heartbeat": "idle",

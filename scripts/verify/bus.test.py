@@ -153,12 +153,14 @@ def main() -> int:
     roles = client.get("/api/status").json()["roles"]
     check("two employees now", len(roles) == 2, str(len(roles)))
 
-    print("=== 4. session_end takes the worker offline ===")
+    print("=== 4. a finished session leaves the worker idle, not gone ===")
     response = client.post(
         "/api/bus/events",
         json={"runtime": "claude-code", "agent": "claude-code-1", "event": "session_end"},
     )
-    check("state is offline", response.json().get("state") == "offline", str(response.json()))
+    check("state is idle", response.json().get("state") == "idle", str(response.json()))
+    roles = client.get("/api/status").json()["roles"]
+    check("the employee stays in the office", len(roles) == 2, str(len(roles)))
 
     print("=== 5. an unknown event is rejected ===")
     response = client.post(

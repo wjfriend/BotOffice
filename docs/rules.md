@@ -260,7 +260,7 @@ Lead 收到任务
 | event | 映射到办公室 |
 |---|---|
 | `session_start` | 员工上线，`IDLE` |
-| `session_end` | 员工离线，`OFFLINE` |
+| `session_end` | 会话结束，但**员工留在办公室**，回到 `IDLE`（不是离职） |
 | `tool_use` | `WORKING` + 敲键盘 |
 | `task_complete` | 汇报，`IDLE` |
 | `heartbeat` | 保活 |

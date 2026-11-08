@@ -2,6 +2,34 @@
 
 ---
 
+## 2026-11-08（第九轮）— 会话结束不等于离职
+
+### 改了什么
+
+| 文件 | 变更 |
+|---|---|
+| `botoffice/external/ingest.py` | `session_end` 不再把员工置为 `offline`，而是回到 `idle`：**人还在办公室，等下一次派活** |
+| `scripts/verify/bus.test.py` | 改为断言「会话结束后员工仍在，状态为 idle」 |
+| `docs/rules.md` | 同步事件映射说明 |
+
+### 为什么改
+
+用户指出：外部 Agent 的会话结束只是这一次干完了，人和工位都应该保留。
+测试用的 Agent 可能只在有测试任务时工作，UI 机器人只在涉及 UI 时工作，其余时间就是空闲等待。
+
+### 如何验证
+
+| 项 | 结果 |
+|---|---|
+| `bash scripts/lint.sh` | LINT OK |
+| `scripts/verify/bus.test.py` | ALL CHECKS PASSED（含「员工仍在」断言） |
+
+### 未验证
+
+- 没有真实 Claude Code 会话端到端跑过（钩子尚未写入用户配置）。
+
+---
+
 ## 2026-11-08（第八轮）— 多团队 / 多办公室
 
 ### 改了什么
