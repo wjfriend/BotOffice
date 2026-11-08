@@ -189,6 +189,18 @@ def main() -> int:
     )
     check("state is waiting", response.json().get("state") == "waiting", str(response.json()))
 
+    print("=== 9. a permission request becomes a pending approval ===")
+    approvals = client.get("/api/approvals").json()["approvals"]
+    check("one approval is pending", len(approvals) == 1, str(len(approvals)))
+    if approvals:
+        approval_id = approvals[0]["id"]
+        resolved = client.post(
+            f"/api/approvals/{approval_id}", json={"approved": True}
+        ).json()
+        check("approval resolves", resolved.get("status") == "approved", str(resolved))
+        remaining = client.get("/api/approvals").json()["approvals"]
+        check("nothing pending afterwards", len(remaining) == 0, str(len(remaining)))
+
     print()
     if FAILURES:
         print(f"FAILED: {len(FAILURES)} check(s): {FAILURES}")

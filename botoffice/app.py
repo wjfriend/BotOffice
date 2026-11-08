@@ -28,6 +28,7 @@ from .llm.providers import ProviderRegistry
 from .llm.router import ModelRouter
 from .logging_setup import get_logger, setup_logging
 from .memory import MemoryStore
+from .orchestrator.approvals import ApprovalQueue
 from .orchestrator.board import TaskBoard
 from .orchestrator.office import OfficeManager
 from .orchestrator.roles import Role, RoleRegistry, RoleScope
@@ -65,6 +66,7 @@ class OfficeContext:
             registry_for=self.registry_for,
         )
         self.board = TaskBoard(self.bus)
+        self.approvals = ApprovalQueue(self.bus)
         self.ingest = BusIngest(self)
         self.agent_usage: dict[str, dict] = {}
         self.agent_action: dict[str, str] = {}
@@ -206,6 +208,10 @@ class EmployeeIn(BaseModel):
 
 class SayIn(BaseModel):
     text: str
+
+
+class ApprovalIn(BaseModel):
+    approved: bool
 
 
 class TeamIn(BaseModel):
@@ -411,6 +417,18 @@ def create_app(context: OfficeContext | None = None) -> FastAPI:
         )
         ctx.hire(role)
         return role.as_dict()
+
+    @app.get("/api/approvals")
+    async def list_approvals(status: str | None = "pending") -> dict:
+        return {"approvals": ctx.approvals.list(status)}
+
+    @app.post("/api/approvals/{approval_id}")
+    async def resolve_approval(approval_id: str, payload: ApprovalIn) -> dict:
+        try:
+            item = ctx.approvals.resolve(approval_id, payload.approved)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return item.as_dict()
 
     @app.get("/api/teams")
     async def list_teams() -> dict:

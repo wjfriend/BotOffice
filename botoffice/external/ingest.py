@@ -71,6 +71,7 @@ class BusIngest:
         )
         self.ctx.bus.publish(
             "bus.event",
+            id=employee_id,
             runtime=runtime,
             agent=agent,
             event=event,

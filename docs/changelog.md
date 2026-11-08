@@ -2,6 +2,36 @@
 
 ---
 
+## 2026-11-09（第十三轮）— 审批队列
+
+### 改了什么
+
+| 文件 | 变更 |
+|---|---|
+| `botoffice/orchestrator/approvals.py` | **新增**：`ApprovalQueue`，订阅 `bus.event` 的 `permission_request` 与 `approval.request`，生成待办 |
+| `botoffice/external/ingest.py` | `bus.event` 补上员工 id，审批能对应到人 |
+| `botoffice/app.py` | 新增 `GET /api/approvals`、`POST /api/approvals/{id}` |
+| `botoffice/gui/main_window.py` / `i18n.py` | 新增 **Approvals 页签**：列出待办，Approve / Reject 两个按钮 |
+| `scripts/verify/bus.test.py` | 新增：权限请求 → 待办 → 批准 → 队列清空 |
+
+### 为什么改
+
+用户要求补齐 munder-difflin 的 `ask me` 能力：外部 CLI 请求权限时，办公室要停下来等人决定。
+
+### 如何验证
+
+| 项 | 结果 |
+|---|---|
+| `bash scripts/lint.sh` | LINT OK |
+| `scripts/verify/bus.test.py` | ALL CHECKS PASSED（含审批流程） |
+| `scripts/verify/backend.test.py` / `employee.test.py` | ALL CHECKS PASSED |
+
+### 未验证
+
+- 没有接真实 Claude Code 的权限请求端到端跑过。
+
+---
+
 ## 2026-11-08（第十二轮）— 固定平面图 + 柔和 2.5D
 
 ### 改了什么

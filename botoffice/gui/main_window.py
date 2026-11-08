@@ -307,11 +307,12 @@ class MainWindow(QMainWindow):
 
     TAB_STAFF = 0
     TAB_TASKS = 1
-    TAB_PLATFORMS = 2
-    TAB_TEAMS = 3
-    TAB_CHAT = 4
-    TAB_MEMORY = 5
-    TAB_COST = 6
+    TAB_APPROVALS = 2
+    TAB_PLATFORMS = 3
+    TAB_TEAMS = 4
+    TAB_CHAT = 5
+    TAB_MEMORY = 6
+    TAB_COST = 7
 
     def __init__(self, office) -> None:
         super().__init__()
@@ -558,8 +559,39 @@ class MainWindow(QMainWindow):
         teams_row.addWidget(self.btn_save_team)
         teams_layout.addLayout(teams_row)
 
+        # Approvals page: decisions that block an agent.
+        approvals_page = QWidget()
+        approvals_layout = QVBoxLayout(approvals_page)
+        approvals_layout.setContentsMargins(8, 8, 8, 8)
+        approvals_layout.setSpacing(6)
+
+        self.approvals_list = QListWidget()
+        self.approvals_list.setStyleSheet(
+            "background:#151a26;border:none;color:#e6ebf5;font-size:12px;"
+        )
+        approvals_layout.addWidget(self.approvals_list, 1)
+
+        approvals_row = QHBoxLayout()
+        approvals_row.setSpacing(6)
+        self.btn_approve = QPushButton(t("approvals.approve"))
+        self.btn_approve.setStyleSheet(
+            "background:#6fcf97;color:#10241a;border:none;border-radius:8px;"
+            "padding:6px 14px;font-weight:600;"
+        )
+        self.btn_approve.clicked.connect(lambda: self.resolve_approval(True))
+        self.btn_reject = QPushButton(t("approvals.reject"))
+        self.btn_reject.setStyleSheet(
+            "background:#e8756a;color:#2a0d0a;border:none;border-radius:8px;"
+            "padding:6px 14px;font-weight:600;"
+        )
+        self.btn_reject.clicked.connect(lambda: self.resolve_approval(False))
+        approvals_row.addWidget(self.btn_approve)
+        approvals_row.addWidget(self.btn_reject)
+        approvals_layout.addLayout(approvals_row)
+
         self.tabs.addTab(staff_page, t("tab.staff"))
         self.tabs.addTab(self.board_view, t("tab.tasks"))
+        self.tabs.addTab(approvals_page, t("tab.approvals"))
         self.tabs.addTab(self.providers_list, t("tab.platforms"))
         self.tabs.addTab(teams_page, t("tab.teams"))
         self.tabs.addTab(chat_page, t("tab.chat"))
@@ -791,6 +823,7 @@ class MainWindow(QMainWindow):
         self.refresh_costs()
         self.refresh_board()
         self.refresh_teams()
+        self.refresh_approvals()
 
     def _fill_providers(self) -> None:
         self.providers_list.clear()
@@ -966,6 +999,37 @@ class MainWindow(QMainWindow):
         self.activity_view.setHtml(rows)
 
     # ------------------------------------------------------- other panels
+
+    # ----------------------------------------------------------- approvals
+
+    def refresh_approvals(self) -> None:
+        self.office.get("/api/approvals", self.on_approvals)
+
+    def on_approvals(self, data: Any) -> None:
+        if not isinstance(data, dict):
+            return
+        self.approvals_list.clear()
+        for item in data.get("approvals", []):
+            entry = QListWidgetItem(
+                f"{item.get('agent')} · {item.get('title')} — {item.get('detail', '')}"
+            )
+            entry.setData(Qt.UserRole, item.get("id"))
+            self.approvals_list.addItem(entry)
+        if not data.get("approvals"):
+            self.approvals_list.addItem(QListWidgetItem(t("approvals.empty")))
+
+    def resolve_approval(self, approved: bool) -> None:
+        item = self.approvals_list.currentItem()
+        if item is None:
+            return
+        approval_id = item.data(Qt.UserRole)
+        if not approval_id:
+            return
+        self.office.post(
+            f"/api/approvals/{approval_id}",
+            {"approved": approved},
+            lambda _result: self.refresh_approvals(),
+        )
 
     # ---------------------------------------------------------------- teams
 

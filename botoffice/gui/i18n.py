@@ -20,6 +20,7 @@ STRINGS: dict[str, str] = {
     # Tabs.
     "tab.staff": "Staff",
     "tab.tasks": "Tasks",
+    "tab.approvals": "Approvals",
     "tab.platforms": "Platforms",
     "tab.teams": "Teams",
     "tab.chat": "Chat",
@@ -141,6 +142,9 @@ STRINGS: dict[str, str] = {
     "msg.no_role": "no role",
     # Tasks and costs.
     "tasks.empty": "No tasks yet. Assign one to the Lead and it shows up here.",
+    "approvals.empty": "Nothing is waiting for you.",
+    "approvals.approve": "Approve",
+    "approvals.reject": "Reject",
     "cost.calls": "calls {calls} | in {tokens_in} | out {tokens_out} | {cost} {currency}",
 }
 
