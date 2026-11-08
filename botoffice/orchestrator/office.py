@@ -51,7 +51,7 @@ MAX_WALK_SECONDS = 1.5
 # Desks: two rows inside the work zone. A third row is pushed further back
 # so the office can still hold a large team.
 STEP_X = 3.4
-ROW_Z = (-3.2, 0.2, 3.6)
+ROW_Z = (-2.4, 2.0)
 FIRST_DESK_X = -5.4
 DESKS_PER_ROW = 5
 
@@ -159,6 +159,8 @@ class Office:
             "entrance": list(ENTRANCE),
             "zones": {key: dict(zone) for key, zone in ZONES.items()},
             "desks": self.all_desks(),
+            # Every workstation the plan has room for, occupied or not.
+            "desk_slots": [desk_position(i) for i in range(DESKS_PER_ROW * len(ROW_Z))],
             "bounds": self.room_bounds(),
         }
 

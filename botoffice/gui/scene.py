@@ -26,6 +26,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from .assets import SpriteSet
 from PySide6.QtGui import (
     QBrush,
+    QTransform,
     QColor,
     QFont,
     QLinearGradient,
@@ -41,7 +42,7 @@ BASE_TILE_W = 46.0
 BASE_TILE_H = 30.0
 # How far the floor shifts sideways with depth. This is what makes the room
 # read as an angled 3/4 view instead of a flat top-down plan.
-OBLIQUE_SHEAR = -0.34
+OBLIQUE_SHEAR = 0.0
 # The whole floor plane is rotated counter-clockwise a little, while the
 # furniture sprites stay upright.
 ROOM_ROTATION = math.radians(0.0)
@@ -239,6 +240,7 @@ class OfficeScene:
         self._view_h = 0.0
         self.stats: dict = {"working": 0, "idle": 0, "cost": 0.0}
         self.zones: dict = {}
+        self.desk_slots: list[list[float]] = []
         self.entrance = (0.0, 11.8)
         self.tile_w = BASE_TILE_W
         self.tile_h = BASE_TILE_H
@@ -269,6 +271,8 @@ class OfficeScene:
             self.zones = dict(landmarks["zones"])
         if "entrance" in landmarks:
             self.entrance = tuple(landmarks["entrance"])
+        if "desk_slots" in landmarks:
+            self.desk_slots = [list(pos) for pos in landmarks["desk_slots"]]
 
     def ensure_avatar(self, role_id: str, name: str, desk: list[float], color_index: int,
                       kind: str = "builtin", runtime: str = "", tag: str = "",
@@ -421,7 +425,8 @@ class OfficeScene:
         return QPolygonF(points)
 
     def _sprite(self, painter: QPainter, name: str, x: float, z: float,
-                world_width: float) -> bool:
+                world_width: float, flip: bool = False,
+                height: float = 0.0) -> bool:
         """Draw assets/<name>.png anchored on the floor.
 
         Returns False when the file is missing so the caller can fall back
@@ -430,10 +435,12 @@ class OfficeScene:
         pixmap = self.sprites.get(name)
         if pixmap is None:
             return False
+        if flip:
+            pixmap = pixmap.transformed(QTransform().scale(1, -1))
         target_w = max(1.0, world_width * self.tile_w)
         scale = target_w / pixmap.width()
         target_h = pixmap.height() * scale
-        base = self.to_screen(x, z)
+        base = self.to_screen(x, z, height)
         painter.drawPixmap(
             QRectF(base.x() - target_w / 2, base.y() - target_h, target_w, target_h),
             pixmap,
@@ -524,6 +531,12 @@ class OfficeScene:
 
         self._draw_entrance(painter)
 
+        # Decor: trees, plants and a framed picture on the wall.
+        self._sprite(painter, "tree", x0 + 1.6, z0 + 8.0, 1.6)
+        self._sprite(painter, "plant_palm", x1 - 2.2, z1 - 2.4, 1.4)
+        self._sprite(painter, "plant_snake", x0 + 3.0, z1 - 1.6, 1.2)
+        self._sprite(painter, "artwork", x0 + 5.0, z0 + 0.3, 1.8, height=62)
+
         for px, pz in (
             (x0 + 1.4, z0 + 1.4),
             (x1 - 1.6, z1 - 1.6),
@@ -532,11 +545,31 @@ class OfficeScene:
             self._draw_plant(painter, px, pz)
 
     def _draw_meeting_room(self, painter: QPainter, zone: dict) -> None:
-        """The meeting room, closed off with glass walls."""
+        """A long table with five chairs down each side, behind glass walls."""
         x, z, w, d = zone["x"], zone["z"], zone["w"], zone["d"]
         self._glass_wall(painter, x, z + d, w, 0.0, "x")
         self._glass_wall(painter, x + w, z, 0.0, d, "z")
-        self._draw_meeting_set(painter, x + w / 2, z + d / 2)
+
+        table_x = x + 1.8
+        table_z = z + d / 2 - 0.7
+        table_w = w - 3.6
+        table_d = 1.4
+
+        # The back row is drawn first so the table hides it.
+        for index in range(5):
+            cx = table_x + (index + 0.5) * table_w / 5
+            self._sprite(painter, "chair_meeting", cx, table_z - 0.45, 0.95)
+
+        self._shadow(painter, table_x + table_w / 2, table_z + table_d / 2, 4.0, 1.6)
+        self._box(painter, table_x, table_z, table_w, table_d, 20, TABLE, DESK_LEG)
+        self._sprite(painter, "projector", table_x + table_w / 2, table_z + table_d / 2, 1.1)
+
+        for index in range(5):
+            cx = table_x + (index + 0.5) * table_w / 5
+            self._sprite(painter, "chair_meeting", cx, table_z + table_d + 0.55, 0.95, flip=True)
+
+        # A whiteboard at the far right of the room.
+        self._sprite(painter, "whiteboard", x + w - 2.4, z + 0.9, 1.8)
 
     def _glass_wall(self, painter: QPainter, x: float, z: float, w: float, d: float,
                     axis: str) -> None:
@@ -555,23 +588,229 @@ class OfficeScene:
         ]))
 
     def _draw_entrance(self, painter: QPainter) -> None:
-        """The door people come in through, on the front edge."""
+        """A sliding glass door at the front, plus the glass front wall."""
         ex, ez = self.entrance
-        if self._sprite(painter, "door", ex, ez, 2.2):
-            return
-        left = self.to_screen(ex - 1.7, ez)
-        right = self.to_screen(ex + 1.7, ez)
-        height = 66.0
-        painter.setBrush(QBrush(QColor("#6b4a2c")))
-        painter.setPen(QPen(QColor("#3f2a14"), 2))
-        painter.drawPolygon(QPolygonF([
-            left, right,
-            QPointF(right.x(), right.y() - height),
-            QPointF(left.x(), left.y() - height),
-        ]))
+        b = self.bounds
+        height = 74.0
+
+        # Glass front wall on both sides of the opening.
+        for start_x, end_x in ((b["min_x"], ex - 2.0), (ex + 2.0, b["max_x"])):
+            a = self.to_screen(start_x, ez)
+            c = self.to_screen(end_x, ez)
+            painter.setBrush(QBrush(QColor(176, 216, 232, 60)))
+            painter.setPen(QPen(QColor("#f4f7fa"), 2))
+            painter.drawPolygon(QPolygonF([
+                a, c, QPointF(c.x(), c.y() - height), QPointF(a.x(), a.y() - height),
+            ]))
+
+        # Two sliding panels, parted in the middle.
+        for offset in (-1.9, 1.9):
+            a = self.to_screen(ex + offset - 1.7, ez)
+            c = self.to_screen(ex + offset + 1.7, ez)
+            painter.setBrush(QBrush(QColor(196, 228, 240, 120)))
+            painter.setPen(QPen(QColor("#cfd8de"), 2))
+            painter.drawPolygon(QPolygonF([
+                a, c, QPointF(c.x(), c.y() - height), QPointF(a.x(), a.y() - height),
+            ]))
+            # Handle.
+            mid = self.to_screen(ex + offset, ez)
+            painter.setBrush(QBrush(QColor("#8d949c")))
+            painter.setPen(Qt.NoPen)
+            painter.drawRect(QRectF(mid.x() - 1.5, mid.y() - 40, 3, 14))
+
+        # Mat on the floor.
         painter.setBrush(QBrush(QColor("#c9772f")))
         painter.setPen(Qt.NoPen)
-        painter.drawPolygon(self._quad(ex - 1.3, ez - 1.4, 2.6, 1.6, 0.8))
+        painter.drawPolygon(self._quad(ex - 2.0, ez - 1.8, 4.0, 1.6, 0.8))
+
+    # ------------------------------------------------------------ geometry
+
+    def _quad(self, x: float, z: float, w: float, d: float, height: float = 0.0) -> QPolygonF:
+        """A flat rectangle on the ground (or lifted to `height`)."""
+        return QPolygonF([
+            self.to_screen(x, z, height),
+            self.to_screen(x + w, z, height),
+            self.to_screen(x + w, z + d, height),
+            self.to_screen(x, z + d, height),
+        ])
+
+    def _wall_quad(self, wall: str, a: float, b: float, coord: float,
+                   h1: float, h2: float) -> QPolygonF:
+        """A rectangle lying on one of the two back walls."""
+        if wall == "z":
+            points = [
+                self.to_screen(a, coord, h1), self.to_screen(b, coord, h1),
+                self.to_screen(b, coord, h2), self.to_screen(a, coord, h2),
+            ]
+        else:
+            points = [
+                self.to_screen(coord, a, h1), self.to_screen(coord, b, h1),
+                self.to_screen(coord, b, h2), self.to_screen(coord, a, h2),
+            ]
+        return QPolygonF(points)
+
+    def _sprite(self, painter: QPainter, name: str, x: float, z: float,
+                world_width: float, flip: bool = False,
+                height: float = 0.0) -> bool:
+        """Draw assets/<name>.png anchored on the floor.
+
+        Returns False when the file is missing so the caller can fall back
+        to the vector shape.
+        """
+        pixmap = self.sprites.get(name)
+        if pixmap is None:
+            return False
+        if flip:
+            pixmap = pixmap.transformed(QTransform().scale(1, -1))
+        target_w = max(1.0, world_width * self.tile_w)
+        scale = target_w / pixmap.width()
+        target_h = pixmap.height() * scale
+        base = self.to_screen(x, z, height)
+        painter.drawPixmap(
+            QRectF(base.x() - target_w / 2, base.y() - target_h, target_w, target_h),
+            pixmap,
+            QRectF(pixmap.rect()),
+        )
+        return True
+
+    def _shadow(self, painter: QPainter, x: float, z: float, rx: float, ry: float) -> None:
+        """A soft contact shadow: stacked ellipses fake a blur."""
+        centre = self.to_screen(x, z, 1)
+        painter.setPen(Qt.NoPen)
+        for scale, alpha in ((1.20, 16), (1.08, 24), (1.00, 34)):
+            painter.setBrush(QBrush(QColor(0, 0, 0, alpha)))
+            painter.drawEllipse(
+                QPointF(centre.x(), centre.y()),
+                rx * self.tile_w * scale,
+                ry * self.tile_h * scale,
+            )
+
+    def _box(self, painter: QPainter, x: float, z: float, w: float, d: float,
+             height: float, fill: QColor, edge: QColor | None = None) -> None:
+        """A solid box: opaque top and two visible side faces.
+
+        The two faces that face the camera are shaded differently, which is
+        what makes the object read as a solid block. Nothing here is
+        translucent.
+        """
+        edge = edge or fill.darker(145)
+        top = [
+            self.to_screen(x, z, height), self.to_screen(x + w, z, height),
+            self.to_screen(x + w, z + d, height), self.to_screen(x, z + d, height),
+        ]
+        base = [
+            self.to_screen(x, z), self.to_screen(x + w, z),
+            self.to_screen(x + w, z + d), self.to_screen(x, z + d),
+        ]
+        # Faces at x+w (facing right) and z+d (facing the viewer).
+        for index, shade in ((1, fill.darker(118)), (2, fill.darker(138))):
+            painter.setBrush(QBrush(shade))
+            painter.setPen(QPen(edge, 1))
+            painter.drawPolygon(QPolygonF([
+                base[index], base[(index + 1) % 4], top[(index + 1) % 4], top[index],
+            ]))
+        top_poly = QPolygonF(top)
+        bounds = top_poly.boundingRect()
+        shade = QLinearGradient(bounds.topLeft(), bounds.bottomRight())
+        shade.setColorAt(0.0, fill.lighter(112))
+        shade.setColorAt(1.0, fill)
+        painter.setBrush(QBrush(shade))
+        painter.setPen(QPen(edge, 1))
+        painter.drawPolygon(top_poly)
+
+    # ---------------------------------------------------------------- room
+
+    def _draw_room(self, painter: QPainter) -> None:
+        """The fixed floor plan: zones, walls, windows and the entrance."""
+        b = self.bounds
+        x0, x1 = b["min_x"], b["max_x"]
+        z0, z1 = b["min_z"], b["max_z"]
+
+        self._draw_floor(painter, x0, x1, z0, z1)
+
+        for zone in self.zones.values():
+            self._zone(painter, zone["x"], zone["z"], zone["w"], zone["d"],
+                       QColor(zone["color"]))
+
+        self._draw_wall(painter, (x0, z0), (x1, z0))
+        self._draw_wall(painter, (x0, z0), (x0, z1))
+        self._draw_window_band(painter, "z", x0 + 1.0, x1 - 1.0, z0)
+        self._draw_window_band(painter, "x", z0 + 1.0, z1 - 1.0, x0)
+        self._draw_digital_board(painter, "x", z0 + 1.4, z0 + 4.2, x0)
+        self._draw_clock(painter, "z", x1 - 3.0, z0)
+
+        self._draw_desk_rugs(painter)
+
+        meeting = self.zones.get("meeting")
+        if meeting:
+            self._draw_meeting_room(painter, meeting)
+        boss = self.zones.get("boss")
+        if boss:
+            self._draw_office_room(painter, boss["x"], boss["z"], boss["w"], boss["d"])
+        pantry = self.zones.get("pantry")
+        if pantry:
+            self._draw_kitchen(painter, pantry["x"] + 0.4, pantry["z"] + 0.6)
+        lounge = self.zones.get("lounge")
+        if lounge:
+            self._draw_lounge(painter, lounge["x"] + 0.6, lounge["z"] + 0.8)
+
+        self._draw_entrance(painter)
+
+        # Decor: trees, plants and a framed picture on the wall.
+        self._sprite(painter, "tree", x0 + 1.6, z0 + 8.0, 1.6)
+        self._sprite(painter, "plant_palm", x1 - 2.2, z1 - 2.4, 1.4)
+        self._sprite(painter, "plant_snake", x0 + 3.0, z1 - 1.6, 1.2)
+        self._sprite(painter, "artwork", x0 + 5.0, z0 + 0.3, 1.8, height=62)
+
+        for px, pz in (
+            (x0 + 1.4, z0 + 1.4),
+            (x1 - 1.6, z1 - 1.6),
+            (x0 + 1.4, z1 - 1.6),
+        ):
+            self._draw_plant(painter, px, pz)
+
+    def _draw_meeting_room(self, painter: QPainter, zone: dict) -> None:
+        """A long table with five chairs down each side, behind glass walls."""
+        x, z, w, d = zone["x"], zone["z"], zone["w"], zone["d"]
+        self._glass_wall(painter, x, z + d, w, 0.0, "x")
+        self._glass_wall(painter, x + w, z, 0.0, d, "z")
+
+        table_x = x + 1.8
+        table_z = z + d / 2 - 0.7
+        table_w = w - 3.6
+        table_d = 1.4
+
+        # The back row is drawn first so the table hides it.
+        for index in range(5):
+            cx = table_x + (index + 0.5) * table_w / 5
+            self._sprite(painter, "chair_meeting", cx, table_z - 0.45, 0.95)
+
+        self._shadow(painter, table_x + table_w / 2, table_z + table_d / 2, 4.0, 1.6)
+        self._box(painter, table_x, table_z, table_w, table_d, 20, TABLE, DESK_LEG)
+        self._sprite(painter, "projector", table_x + table_w / 2, table_z + table_d / 2, 1.1)
+
+        for index in range(5):
+            cx = table_x + (index + 0.5) * table_w / 5
+            self._sprite(painter, "chair_meeting", cx, table_z + table_d + 0.55, 0.95, flip=True)
+
+        # A whiteboard at the far right of the room.
+        self._sprite(painter, "whiteboard", x + w - 2.4, z + 0.9, 1.8)
+
+    def _glass_wall(self, painter: QPainter, x: float, z: float, w: float, d: float,
+                    axis: str) -> None:
+        """A translucent glass panel, used only where glass is intended."""
+        height = 54.0
+        if axis == "x":
+            a = self.to_screen(x, z)
+            b = self.to_screen(x + w, z)
+        else:
+            a = self.to_screen(x, z)
+            b = self.to_screen(x, z + d)
+        painter.setBrush(QBrush(QColor(176, 216, 232, 70)))
+        painter.setPen(QPen(QColor("#f4f7fa"), 2))
+        painter.drawPolygon(QPolygonF([
+            a, b, QPointF(b.x(), b.y() - height), QPointF(a.x(), a.y() - height),
+        ]))
 
     def _draw_floor(self, painter: QPainter, x0: float, x1: float, z0: float, z1: float) -> None:
         """Wooden planks running along x."""
@@ -682,10 +921,10 @@ class OfficeScene:
             color = RUG_COLORS[index % len(RUG_COLORS)]
             painter.setBrush(QBrush(color))
             painter.setPen(QPen(color.darker(150), 1))
-            painter.drawPolygon(self._quad(item.x - 1.05, item.z - 0.85, 2.1, 1.7, 1.0))
+            painter.drawPolygon(self._quad(item.x - 1.45, item.z - 1.05, 2.9, 2.1, 1.0))
             painter.setBrush(QBrush(color.lighter(118)))
             painter.setPen(Qt.NoPen)
-            painter.drawPolygon(self._quad(item.x - 0.9, item.z - 0.7, 1.8, 1.4, 1.6))
+            painter.drawPolygon(self._quad(item.x - 1.25, item.z - 0.9, 2.5, 1.8, 1.6))
 
     def _zone(self, painter: QPainter, x: float, z: float, w: float, d: float,
               color: QColor) -> None:
@@ -957,13 +1196,23 @@ class OfficeScene:
             painter.drawEllipse(tip, 7, 11)
 
     def _draw_furniture(self, painter: QPainter) -> None:
+        # Every planned workstation is drawn, occupied or not, so the office
+        # looks like an office rather than a few floating desks.
+        occupied = {(round(item.x, 2), round(item.z, 2)) for item in self.furniture}
+        empty = [
+            (pos[0], pos[1]) for pos in self.desk_slots
+            if (round(pos[0], 2), round(pos[1], 2)) not in occupied
+        ]
+        for x, z in sorted(empty, key=lambda pair: pair[1]):
+            self._draw_desk(painter, x, z, "")
         for item in sorted(self.furniture, key=lambda f: f.z):
             if item.kind != "desk":
                 continue
             self._draw_desk(painter, item.x, item.z, item.owner)
 
     def _draw_desk(self, painter: QPainter, x: float, z: float, owner: str) -> None:
-        if self._sprite(painter, "desk", x, z - 0.75, 2.6):
+        if self._sprite(painter, "desk", x, z + 0.1, 2.6):
+            self._sprite(painter, "monitor", x, z - 0.35, 0.95)
             return
         self._shadow(painter, x, z + 0.2, 2.2, 1.6)
 
