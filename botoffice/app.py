@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 
 from .agent.builtin_tools import register_browser_tools, register_tarsier_tools
 from .agent.runtime import AgentRuntime
-from .agent.tools import ToolRegistry
+from .agent.tools import Tool, ToolRegistry
 from .bus import EventBus
 from .external.ingest import BusIngest
 from .llm.client import LLMClient
@@ -31,6 +31,7 @@ from .memory import MemoryStore
 from .orchestrator.board import TaskBoard
 from .orchestrator.office import OfficeManager
 from .orchestrator.roles import Role, RoleRegistry, RoleScope
+from .orchestrator.teams import TeamRegistry
 from .orchestrator.tasks import Orchestrator
 
 log = get_logger("botoffice.app")
@@ -53,10 +54,16 @@ class OfficeContext:
         self.roles.load()
         self.memory = MemoryStore(self.data_dir / "memory.json", bus=self.bus)
         self.offices = OfficeManager()
-        self.tools = ToolRegistry()
+        self.tools = ToolRegistry()  # shared tools only: browser, desktop
+        self.teams = TeamRegistry(root / "config" / "teams.json", root / "workspace")
+        self.teams.load()
+        self._team_registries: dict[str, ToolRegistry] = {}
         self.client = LLMClient(self.providers)
         self.router = ModelRouter(self.providers, self.client)
-        self.runtime = AgentRuntime(self.router, self.tools, self.memory, self.bus)
+        self.runtime = AgentRuntime(
+            self.router, self.tools, self.memory, self.bus,
+            registry_for=self.registry_for,
+        )
         self.board = TaskBoard(self.bus)
         self.ingest = BusIngest(self)
         self.orchestrator = Orchestrator(
@@ -86,12 +93,32 @@ class OfficeContext:
         )
         return role
 
-    async def setup_tools(self, workspace: Path, allow_commands: bool = False) -> None:
+    def registry_for(self, team: str | None) -> ToolRegistry:
+        """The tool set for one team.
+
+        Shared tools (browser, desktop) are copied from the global registry;
+        the file tools are bound to that team's own workspace, so two teams
+        never see each other's project files.
+        """
+        from dataclasses import asdict
+
         from .agent.builtin_tools import register_files_tools
 
-        register_files_tools(self.tools, workspace, allow_commands=allow_commands)
+        key = (team or "general").strip() or "general"
+        registry = self._team_registries.get(key)
+        if registry is None:
+            registry = ToolRegistry()
+            for tool in self.tools.list():
+                registry.register(Tool(**asdict(tool)))
+            workspace = Path(self.teams.get(key).workspace)
+            register_files_tools(registry, workspace, allow_commands=False)
+            self._team_registries[key] = registry
+        return registry
+
+    async def setup_tools(self, workspace: Path, allow_commands: bool = False) -> None:
         browser_ok = await register_browser_tools(self.tools)
         tarsier_ok = await register_tarsier_tools(self.tools)
+        self._team_registries.clear()
         log.info(
             "tools registered: %s (browser=%s tarsier=%s)",
             [t.name for t in self.tools.list()],
@@ -159,6 +186,12 @@ class SayIn(BaseModel):
     text: str
 
 
+class TeamIn(BaseModel):
+    id: str
+    name: str = ""
+    workspace: str
+
+
 class AssignIn(BaseModel):
     leader_id: str
     worker_id: str
@@ -217,7 +250,10 @@ def create_app(context: OfficeContext | None = None) -> FastAPI:
             "total_cost": ctx.providers.total_cost(),
             "layout": office.landmarks(),
             "board": ctx.board.summary(),
-            "teams": sorted({role.team for role in ctx.roles.list()}) or ["general"],
+            "teams": sorted(
+                {role.team for role in ctx.roles.list()}
+                | {team.id for team in ctx.teams.list()}
+            ) or ["general"],
             "team": team or "general",
         }
 
@@ -346,6 +382,21 @@ def create_app(context: OfficeContext | None = None) -> FastAPI:
         )
         ctx.hire(role)
         return role.as_dict()
+
+    @app.get("/api/teams")
+    async def list_teams() -> dict:
+        return {"teams": [team.as_dict() for team in ctx.teams.list()]}
+
+    @app.post("/api/teams")
+    async def save_team(payload: TeamIn) -> dict:
+        """Create a team or change its working directory."""
+        team = ctx.teams.set_workspace(payload.id, payload.workspace)
+        if payload.name:
+            team.name = payload.name
+            ctx.teams.save()
+        # The tool set is bound to the folder, so rebuild it.
+        ctx._team_registries.pop(team.id, None)
+        return team.as_dict()
 
     @app.post("/api/bus/events")
     async def bus_events(payload: dict) -> dict:

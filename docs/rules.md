@@ -345,3 +345,16 @@ registry.call(name, args) -> {"ok": bool, ...}
 | 2.5D 场景 | 手动验收清单（截图存档） |
 
 > 仅目视确认不算通过。所有脚本退出码必须为 0。
+
+
+---
+
+## 11. 团队与工作目录
+
+- 每个团队有一个 `workspace`，存在 `config/teams.json`：`{ "teams": [{"id","name","workspace"}] }`。
+- **文件工具只能访问本团队的工作目录**：`files_read` / `files_write` / `files_list` / `run_command`
+  都以该目录为根，路径逃逸一律拒绝。
+- 每个团队的工具集独立构建（`OfficeContext.registry_for(team)`），
+  所以两个团队看不到彼此的项目文件。
+- 改团队工作目录后必须重建该团队的工具集，否则仍指向旧目录。
+- 外部 CLI 的工作目录由它自己的进程决定；`session_start` 可带 `cwd`，用于后续校准团队路径。

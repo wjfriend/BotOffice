@@ -149,11 +149,15 @@ class AgentRuntime:
         registry: ToolRegistry,
         memory: MemoryStore,
         bus: EventBus,
+        registry_for=None,
     ) -> None:
         self.router = router
         self.registry = registry
         self.memory = memory
         self.bus = bus
+        # Optional: resolve a per-team registry so each team works in its
+        # own folder without changing every call site.
+        self.registry_for = registry_for
 
     async def run(
         self,
@@ -166,7 +170,10 @@ class AgentRuntime:
     ) -> AgentTurn:
         """Run one role to completion and return what it said and did."""
         binding = binding or role.llm
-        tool_specs = self.registry.specs_for(role.scope.tools)
+        registry = self.registry
+        if self.registry_for is not None:
+            registry = self.registry_for(getattr(role, "team", "general"))
+        tool_specs = registry.specs_for(role.scope.tools)
         system_prompt = build_system_prompt(role, tool_specs)
 
         messages: list[dict] = []
@@ -224,7 +231,7 @@ class AgentRuntime:
                 )
                 continue
 
-            result = await self.registry.call(tool_name, action["args"])
+            result = await registry.call(tool_name, action["args"])
             turn.tool_calls.append({"tool": tool_name, "args": action["args"], "result": result})
             self.bus.publish(
                 "agent.tool_call",

@@ -2,6 +2,33 @@
 
 ---
 
+## 2026-11-08（第十一轮）— 团队工作目录
+
+### 改了什么
+
+| 文件 | 变更 |
+|---|---|
+| `botoffice/orchestrator/teams.py` | **新增**：`TeamRegistry`，团队与工作目录存在 `config/teams.json` |
+| `botoffice/app.py` | 新增 `GET/POST /api/teams`；新增 `registry_for(team)`：每个团队一套工具，文件工具绑定到该团队目录 |
+| `botoffice/agent/runtime.py` | 运行时按员工所属团队解析工具集，调用点不用改 |
+| `botoffice/gui/main_window.py` / `i18n.py` | 新增 **Teams 页签**：查看团队、选目录（Browse）、保存 |
+| `scripts/verify/employee.test.py` | 新增：团队工作目录保存后，该团队能读到自己目录里的文件，且与别的团队工具集隔离 |
+
+### 为什么改
+
+用户问「开始第一个 conversation 时它怎么知道我的项目路径，有设置的地方么」——
+之前确实没有，文件工具固定用项目下的 `workspace/`。
+
+### 如何验证
+
+| 项 | 结果 |
+|---|---|
+| `bash scripts/lint.sh` | LINT OK |
+| `scripts/verify/employee.test.py` | ALL CHECKS PASSED（含跨团队目录隔离） |
+| `scripts/verify/backend.test.py` / `bus.test.py` | ALL CHECKS PASSED |
+
+---
+
 ## 2026-11-08（第十轮）— waiting 状态
 
 ### 改了什么

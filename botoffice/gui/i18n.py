@@ -21,6 +21,7 @@ STRINGS: dict[str, str] = {
     "tab.staff": "Staff",
     "tab.tasks": "Tasks",
     "tab.platforms": "Platforms",
+    "tab.teams": "Teams",
     "tab.chat": "Chat",
     "tab.memory": "Memory",
     "tab.cost": "Cost",
@@ -30,6 +31,16 @@ STRINGS: dict[str, str] = {
     "chat.placeholder": "Type a message...",
     "chat.send": "Send",
     "chat.you": "You",
+    # Teams.
+    "teams.hint": (
+        "Each team works in its own folder. File tools can only touch that folder, "
+        "so two teams never see each other's project files."
+    ),
+    "teams.id_placeholder": "team id, e.g. general",
+    "teams.workspace_placeholder": "E:/path/to/project",
+    "teams.save": "Save",
+    "teams.browse": "Browse...",
+    "teams.need_both": "Team id and workspace are both required.",
     # Staff panel.
     "staff.counts": "Working {working} · Waiting {waiting} · Idle {idle} · Offline {offline}",
     "staff.empty": "The office is empty. Click New Conversation to hire the first employee.",

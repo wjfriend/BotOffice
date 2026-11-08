@@ -14,6 +14,7 @@ Run: python scripts/verify/employee.test.py
 
 from __future__ import annotations
 
+import asyncio
 import json
 import sys
 import tempfile
@@ -36,7 +37,7 @@ def check(label: str, condition: bool, detail: str = "") -> None:
         FAILURES.append(label)
 
 
-def build_client() -> TestClient:
+def build_client() -> tuple[TestClient, OfficeContext]:
     root = Path(tempfile.mkdtemp(prefix="botoffice-verify-"))
     (root / "config").mkdir(parents=True)
     (root / "data").mkdir(parents=True)
@@ -59,11 +60,11 @@ def build_client() -> TestClient:
     )
     (root / "config" / "roles.json").write_text(json.dumps({"roles": []}), encoding="utf-8")
     context = OfficeContext(root)
-    return TestClient(create_app(context))
+    return TestClient(create_app(context)), context
 
 
 def main() -> int:
-    client = build_client()
+    client, context = build_client()
 
     print("=== 1. empty office starts with nobody ===")
     status = client.get("/api/status").json()
@@ -166,6 +167,19 @@ def main() -> int:
           str(alpha_status["layout"]["desks"]))
     check("team list is reported", "alpha" in (alpha_status.get("teams") or []),
           str(alpha_status.get("teams")))
+
+    print("=== 11. each team has its own working folder ===")
+    alpha_dir = Path(tempfile.mkdtemp(prefix="botoffice-alpha-"))
+    (alpha_dir / "hello.txt").write_text("hi from alpha", encoding="utf-8")
+    saved = client.post(
+        "/api/teams", json={"id": "alpha", "workspace": str(alpha_dir)}
+    ).json()
+    check("workspace saved", saved.get("workspace") == str(alpha_dir), str(saved))
+    registry = context.registry_for("alpha")
+    result = asyncio.run(registry.call("files_read", {"path": "hello.txt"}))
+    check("alpha reads from its own folder", result.get("ok") is True, str(result)[:90])
+    general_registry = context.registry_for("general")
+    check("teams get separate tool sets", registry is not general_registry)
 
     if FAILURES:
         print(f"\n{len(FAILURES)} CHECK(S) FAILED")

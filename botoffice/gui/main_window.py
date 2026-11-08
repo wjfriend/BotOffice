@@ -308,9 +308,10 @@ class MainWindow(QMainWindow):
     TAB_STAFF = 0
     TAB_TASKS = 1
     TAB_PLATFORMS = 2
-    TAB_CHAT = 3
-    TAB_MEMORY = 4
-    TAB_COST = 5
+    TAB_TEAMS = 3
+    TAB_CHAT = 4
+    TAB_MEMORY = 5
+    TAB_COST = 6
 
     def __init__(self, office) -> None:
         super().__init__()
@@ -509,9 +510,58 @@ class MainWindow(QMainWindow):
         row.addWidget(self.btn_send)
         chat_layout.addLayout(row)
 
+        # Teams page: each team's working folder.
+        teams_page = QWidget()
+        teams_layout = QVBoxLayout(teams_page)
+        teams_layout.setContentsMargins(8, 8, 8, 8)
+        teams_layout.setSpacing(6)
+
+        teams_hint = QLabel(t("teams.hint"))
+        teams_hint.setWordWrap(True)
+        teams_hint.setStyleSheet("color:#93a0b8;font-size:12px;")
+        teams_layout.addWidget(teams_hint)
+
+        self.teams_list = QListWidget()
+        self.teams_list.setStyleSheet(
+            "background:#151a26;border:none;color:#e6ebf5;font-size:12px;"
+        )
+        self.teams_list.itemSelectionChanged.connect(self.on_team_selected)
+        teams_layout.addWidget(self.teams_list, 1)
+
+        self.team_id_edit = QLineEdit()
+        self.team_id_edit.setPlaceholderText(t("teams.id_placeholder"))
+        self.team_id_edit.setStyleSheet(
+            "background:#151a26;border:1px solid #2e3950;border-radius:8px;"
+            "color:#e6ebf5;padding:6px 8px;"
+        )
+        teams_layout.addWidget(self.team_id_edit)
+
+        self.workspace_edit = QLineEdit()
+        self.workspace_edit.setPlaceholderText(t("teams.workspace_placeholder"))
+        self.workspace_edit.setStyleSheet(
+            "background:#151a26;border:1px solid #2e3950;border-radius:8px;"
+            "color:#e6ebf5;padding:6px 8px;"
+        )
+        teams_layout.addWidget(self.workspace_edit)
+
+        teams_row = QHBoxLayout()
+        teams_row.setSpacing(6)
+        self.btn_browse = QPushButton(t("teams.browse"))
+        self.btn_browse.clicked.connect(self.on_browse_workspace)
+        self.btn_save_team = QPushButton(t("teams.save"))
+        self.btn_save_team.setStyleSheet(
+            "background:#ffb45e;color:#241a08;border:none;border-radius:8px;"
+            "padding:6px 14px;font-weight:600;"
+        )
+        self.btn_save_team.clicked.connect(self.on_save_team)
+        teams_row.addWidget(self.btn_browse)
+        teams_row.addWidget(self.btn_save_team)
+        teams_layout.addLayout(teams_row)
+
         self.tabs.addTab(staff_page, t("tab.staff"))
         self.tabs.addTab(self.board_view, t("tab.tasks"))
         self.tabs.addTab(self.providers_list, t("tab.platforms"))
+        self.tabs.addTab(teams_page, t("tab.teams"))
         self.tabs.addTab(chat_page, t("tab.chat"))
         self.tabs.addTab(self.memory_list, t("tab.memory"))
         self.tabs.addTab(self.costs_list, t("tab.cost"))
@@ -740,6 +790,7 @@ class MainWindow(QMainWindow):
         self.refresh_memory()
         self.refresh_costs()
         self.refresh_board()
+        self.refresh_teams()
 
     def _fill_providers(self) -> None:
         self.providers_list.clear()
@@ -882,6 +933,54 @@ class MainWindow(QMainWindow):
         self.activity_view.setHtml(rows)
 
     # ------------------------------------------------------- other panels
+
+    # ---------------------------------------------------------------- teams
+
+    def refresh_teams(self) -> None:
+        self.office.get("/api/teams", self.on_teams)
+
+    def on_teams(self, data: Any) -> None:
+        if not isinstance(data, dict):
+            return
+        self.teams_list.clear()
+        for team in data.get("teams", []):
+            item = QListWidgetItem(f"{team.get('id')}  ·  {team.get('workspace', '')}")
+            item.setData(Qt.UserRole, team)
+            self.teams_list.addItem(item)
+
+    def on_team_selected(self) -> None:
+        item = self.teams_list.currentItem()
+        if item is None:
+            return
+        team = item.data(Qt.UserRole) or {}
+        self.team_id_edit.setText(team.get("id", ""))
+        self.workspace_edit.setText(team.get("workspace", ""))
+
+    def on_browse_workspace(self) -> None:
+        from PySide6.QtWidgets import QFileDialog
+
+        path = QFileDialog.getExistingDirectory(self, t("teams.browse"))
+        if path:
+            self.workspace_edit.setText(path)
+
+    def on_save_team(self) -> None:
+        team_id = self.team_id_edit.text().strip()
+        workspace = self.workspace_edit.text().strip()
+        if not team_id or not workspace:
+            QMessageBox.warning(self, "BotOffice", t("teams.need_both"))
+            return
+        self.office.post(
+            "/api/teams",
+            {"id": team_id, "workspace": workspace},
+            self.on_team_saved,
+        )
+
+    def on_team_saved(self, result: Any) -> None:
+        if isinstance(result, dict) and result.get("error"):
+            QMessageBox.warning(self, "BotOffice", result["error"])
+            return
+        self.refresh_teams()
+        self.refresh_all()
 
     def refresh_memory(self) -> None:
         self.office.get("/api/memory?limit=50", self.on_memory)
