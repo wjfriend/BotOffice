@@ -29,7 +29,7 @@ from .llm.router import ModelRouter
 from .logging_setup import get_logger, setup_logging
 from .memory import MemoryStore
 from .orchestrator.board import TaskBoard
-from .orchestrator.office import Office
+from .orchestrator.office import OfficeManager
 from .orchestrator.roles import Role, RoleRegistry, RoleScope
 from .orchestrator.tasks import Orchestrator
 
@@ -52,7 +52,7 @@ class OfficeContext:
         self.roles = RoleRegistry(root / "config" / "roles.json")
         self.roles.load()
         self.memory = MemoryStore(self.data_dir / "memory.json", bus=self.bus)
-        self.office = Office()
+        self.offices = OfficeManager()
         self.tools = ToolRegistry()
         self.client = LLMClient(self.providers)
         self.router = ModelRouter(self.providers, self.client)
@@ -60,12 +60,12 @@ class OfficeContext:
         self.board = TaskBoard(self.bus)
         self.ingest = BusIngest(self)
         self.orchestrator = Orchestrator(
-            self.roles, self.office, self.runtime, self.memory, self.bus
+            self.roles, self.offices, self.runtime, self.memory, self.bus
         )
 
-        # Give every loaded role a desk.
+        # Give every loaded role a desk in its own team's office.
         for role in self.roles.list():
-            self.office.assign_desk(role)
+            self.offices.office_for(role.team).assign_desk(role)
 
     def hire(self, role: Role) -> Role:
         """Add one employee and give it a desk.
@@ -73,7 +73,7 @@ class OfficeContext:
         This is the single place a new character enters the office, whether
         the user clicked "new conversation" or a Lead hired someone.
         """
-        desk = self.office.assign_desk(role)
+        desk = self.offices.office_for(role.team).assign_desk(role)
         role.desk = desk
         self.roles.add(role)
         self.bus.publish(
@@ -150,6 +150,7 @@ class EmployeeIn(BaseModel):
     runtime: str = "builtin"
     provider: str = ""
     department: str = "general"
+    team: str = "general"
     responsibilities: str = ""
     avatar: str = ""
 
@@ -202,16 +203,22 @@ def create_app(context: OfficeContext | None = None) -> FastAPI:
     # ------------------------------------------------------------- status
 
     @app.get("/api/status")
-    async def status() -> dict:
+    async def status(team: str | None = None) -> dict:
+        roles = ctx.roles.list()
+        if team:
+            roles = [role for role in roles if role.team == team]
+        office = ctx.offices.office_for(team or "general")
         return {
-            "roles": [role.as_dict() for role in ctx.roles.list()],
+            "roles": [role.as_dict() for role in roles],
             "providers": [p.redacted() for p in ctx.providers.list()],
             "tools": [t.name for t in ctx.tools.list()],
             "memory": ctx.memory.stats(),
             "cost": ctx.providers.cost_summary(),
             "total_cost": ctx.providers.total_cost(),
-            "layout": ctx.office.landmarks(),
+            "layout": office.landmarks(),
             "board": ctx.board.summary(),
+            "teams": sorted({role.team for role in ctx.roles.list()}) or ["general"],
+            "team": team or "general",
         }
 
     @app.get("/api/tasks")
@@ -293,6 +300,7 @@ def create_app(context: OfficeContext | None = None) -> FastAPI:
             role=payload.role,
             kind=kind,
             department=payload.department,
+            team=payload.team or "general",
             leader=first,
             rank="lead" if first else "member",
             responsibilities=payload.responsibilities,
@@ -390,9 +398,13 @@ def create_app(context: OfficeContext | None = None) -> FastAPI:
 
     @app.delete("/api/roles/{role_id}")
     async def delete_role(role_id: str) -> dict:
-        if not ctx.roles.remove(role_id):
-            raise HTTPException(status_code=404, detail=f"unknown role {role_id!r}")
-        ctx.office.release_desk(role_id)
+        try:
+            role = ctx.roles.get(role_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        team = role.team
+        ctx.roles.remove(role_id)
+        ctx.offices.office_for(team).release_desk(role_id)
         ctx.bus.publish("role.removed", id=role_id)
         return {"ok": True}
 

@@ -235,6 +235,8 @@ class NewConversationDialog(QDialog):
         self.role_edit.setPlaceholderText(t("placeholder.role"))
         self.dept_edit = QLineEdit("general")
         self.dept_edit.setPlaceholderText(t("placeholder.department"))
+        self.team_edit = QLineEdit("general")
+        self.team_edit.setPlaceholderText(t("placeholder.team"))
         self.resp_edit = QTextEdit()
         self.resp_edit.setPlaceholderText(t("placeholder.responsibilities"))
         self.resp_edit.setMaximumHeight(72)
@@ -257,6 +259,7 @@ class NewConversationDialog(QDialog):
         form.addRow(t("field.name"), self.name_edit)
         form.addRow(t("field.role"), self.role_edit)
         form.addRow(t("field.department"), self.dept_edit)
+        form.addRow(t("field.team"), self.team_edit)
         form.addRow(t("field.agent_type"), self.runtime_box)
         form.addRow(t("field.platform"), self.provider_box)
         form.addRow(t("field.appearance"), self.avatar_box)
@@ -291,6 +294,7 @@ class NewConversationDialog(QDialog):
             "name": self.name_edit.text().strip() or agent_id,
             "role": self.role_edit.text().strip(),
             "department": department,
+            "team": self.team_edit.text().strip() or "general",
             "runtime": runtime,
             "provider": self.provider_box.currentData() if runtime == "builtin" else "",
             "responsibilities": self.resp_edit.toPlainText().strip(),
@@ -319,6 +323,7 @@ class MainWindow(QMainWindow):
         self.chat_lines: list[tuple[str, str]] = []
         self.activity_lines: list[tuple[str, str]] = []
         self.selected_agent: str | None = None
+        self.current_team: str | None = None
 
         self._build_ui()
         self.refresh_all()
@@ -385,6 +390,14 @@ class MainWindow(QMainWindow):
         )
         self.btn_sidebar.clicked.connect(self.toggle_sidebar)
         bar.addWidget(self.btn_sidebar)
+
+        self.team_box = QComboBox()
+        self.team_box.setStyleSheet(
+            "background:#222a3d;color:#e6ebf5;border:1px solid #2e3950;"
+            "border-radius:8px;padding:5px 10px;font-size:12px;"
+        )
+        self.team_box.currentIndexChanged.connect(self.on_team_changed)
+        bar.addWidget(self.team_box)
 
         bar.addStretch(1)
         self.stat_cost = QLabel(t("stat.cost", value="0.00"))
@@ -681,13 +694,44 @@ class MainWindow(QMainWindow):
     # -------------------------------------------------------------- refresh
 
     def refresh_all(self) -> None:
-        self.office.get("/api/status", self.on_status)
+        path = "/api/status"
+        if self.current_team:
+            path += f"?team={self.current_team}"
+        self.office.get(path, self.on_status)
+
+    def on_team_changed(self, index: int) -> None:
+        team = self.team_box.itemData(index)
+        if not team:
+            return
+        self.current_team = team
+        self.selected_agent = None
+        self.chat_header.setText(t("chat.no_target"))
+        self.refresh_all()
+
+    def _sync_team_box(self, teams: list[str], current: str) -> None:
+        existing = [self.team_box.itemData(i) for i in range(self.team_box.count())]
+        if existing != teams:
+            self.team_box.blockSignals(True)
+            self.team_box.clear()
+            for team in teams:
+                self.team_box.addItem(team, team)
+            self.team_box.blockSignals(False)
+        index = self.team_box.findData(current)
+        if index >= 0 and index != self.team_box.currentIndex():
+            self.team_box.blockSignals(True)
+            self.team_box.setCurrentIndex(index)
+            self.team_box.blockSignals(False)
+        self.current_team = current
 
     def on_status(self, status: Any) -> None:
         if not isinstance(status, dict):
             return
         self.roles = status.get("roles", [])
         self.providers = status.get("providers", [])
+        self._sync_team_box(
+            status.get("teams") or ["general"],
+            status.get("team") or "general",
+        )
         self._fill_providers()
         self._sync_scene(status)
         self.refresh_staff()

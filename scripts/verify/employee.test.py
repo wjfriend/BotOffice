@@ -143,6 +143,30 @@ def main() -> int:
     bad = client.post("/api/agents/claude/say", json={"text": "hi"})
     check("external returns 400", bad.status_code == 400, str(bad.status_code))
 
+    print("=== 10. teams get their own offices ===")
+    alpha = client.post(
+        "/api/employees",
+        json={
+            "id": "bob2",
+            "name": "Bob2",
+            "runtime": "builtin",
+            "provider": "mock",
+            "team": "alpha",
+        },
+    ).json()
+    check("team stored", alpha.get("team") == "alpha", str(alpha.get("team")))
+    general_status = client.get("/api/status?team=general").json()
+    alpha_status = client.get("/api/status?team=alpha").json()
+    check("general keeps its staff", len(general_status["roles"]) == 3,
+          str(len(general_status["roles"])))
+    check("alpha has one employee", len(alpha_status["roles"]) == 1,
+          str(len(alpha_status["roles"])))
+    check("alpha starts at its own first desk",
+          alpha_status["layout"]["desks"].get("bob2") == [-6.0, -3.6],
+          str(alpha_status["layout"]["desks"]))
+    check("team list is reported", "alpha" in (alpha_status.get("teams") or []),
+          str(alpha_status.get("teams")))
+
     if FAILURES:
         print(f"\n{len(FAILURES)} CHECK(S) FAILED")
         return 1

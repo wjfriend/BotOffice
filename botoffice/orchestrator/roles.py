@@ -85,6 +85,7 @@ class Role:
     role: str = ""
     kind: str = KIND_BUILTIN
     department: str = "general"
+    team: str = "general"
     leader: bool = False
     rank: str = ""
     responsibilities: str = ""

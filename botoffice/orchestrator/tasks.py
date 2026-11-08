@@ -28,7 +28,7 @@ from ..memory import MemoryStore, private_scope, work_scope
 from .office import (
     LEADER_OFFICE_DOOR,
     MEETING_ROOM_CENTER,
-    Office,
+    OfficeManager,
     Point,
     meeting_seat,
     walk_seconds,
@@ -68,17 +68,21 @@ class Orchestrator:
     def __init__(
         self,
         roles: "RoleRegistryLike",
-        office: Office,
+        offices: OfficeManager,
         runtime: AgentRuntime,
         memory: MemoryStore,
         bus: EventBus,
     ) -> None:
         self.roles = roles
-        self.office = office
+        self.offices = offices
         self.runtime = runtime
         self.memory = memory
         self.bus = bus
         self._machines: dict[str, StateMachine] = {}
+
+    def _office_for(self, role):
+        """The office a role belongs to: each team has its own."""
+        return self.offices.office_for(getattr(role, "team", "general"))
 
     def machine(self, role_id: str) -> StateMachine:
         if role_id not in self._machines:
@@ -90,7 +94,7 @@ class Orchestrator:
     async def _walk_to(self, role, target: Point, purpose: str) -> None:
         """Move an agent to a point and publish the animation events."""
         machine = self.machine(role.id)
-        origin = self.office.desk_of(role.id)
+        origin = self._office_for(role).desk_of(role.id)
         machine.to(AgentState.WALKING, purpose=purpose)
         self.bus.publish(
             "agent.move",
@@ -109,7 +113,7 @@ class Orchestrator:
         if machine.state in (AgentState.OFFLINE, AgentState.IDLE):
             return
         machine.to(AgentState.RETURNING)
-        origin = self.office.desk_of(role.id)
+        origin = self._office_for(role).desk_of(role.id)
         self.bus.publish(
             "agent.move",
             id=role.id,
@@ -242,7 +246,7 @@ class Orchestrator:
         task_id = task_id or f"task-{uuid.uuid4().hex[:8]}"
         result = InteractionResult(kind="handoff", participants=[from_id, to_id], task_id=task_id)
 
-        target = self.office.desk_of(to_id)
+        target = self._office_for(receiver).desk_of(to_id)
         await self._walk_to(sender, target, "handoff")
         self.machine(receiver.id).to(AgentState.INTERACTING, purpose="handoff")
 
@@ -332,7 +336,7 @@ class Orchestrator:
 
         self.bus.publish("interact.started", id=from_id, peer=to_id, note=note)
 
-        target = self.office.desk_of(to_id)
+        target = self._office_for(second).desk_of(to_id)
         await self._walk_to(first, target, "interact")
         self.machine(second.id).to(AgentState.INTERACTING, purpose="interact")
 

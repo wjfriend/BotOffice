@@ -2,6 +2,40 @@
 
 ---
 
+## 2026-11-08（第八轮）— 多团队 / 多办公室
+
+### 改了什么
+
+| 文件 | 变更 |
+|---|---|
+| `botoffice/orchestrator/roles.py` | 员工新增 `team` 字段，默认 `general` |
+| `botoffice/orchestrator/office.py` | **新增 `OfficeManager`**：每个团队一个独立 `Office`（各自的工位、边界、地标） |
+| `botoffice/orchestrator/tasks.py` | 走位改为按员工所属团队取办公室，交接/开聊的目标工位也取对应团队 |
+| `botoffice/app.py` | `GET /api/status?team=` 按团队过滤员工并返回该团队布局；返回 `teams` 列表；删除员工时归还到其团队 |
+| `botoffice/gui/main_window.py` | 工具栏新增**团队下拉框**；「新建对话」增加 Team 字段 |
+| `scripts/verify/employee.test.py` | 新增：两个团队各自独立、新团队从第一个工位开始、团队列表正确 |
+
+### 为什么改
+
+用户要求 C 项：多个团队，每个团队一个办公室，点选团队切换展示。
+
+### 如何验证
+
+| 项 | 结果 |
+|---|---|
+| `bash scripts/lint.sh` | LINT OK |
+| `scripts/verify/backend.test.py` | ALL CHECKS PASSED |
+| `scripts/verify/employee.test.py` | ALL CHECKS PASSED（含团队隔离） |
+| `scripts/verify/bus.test.py` | ALL CHECKS PASSED |
+| 演示脚本 | exit=0，工具栏出现团队下拉框 |
+
+### 未验证
+
+- 多楼层（同一团队分楼层）尚未实现；目前是「多团队 = 多办公室」。
+- 没有在真实窗口里手动切换团队验证。
+
+---
+
 ## 2026-11-08（第七轮）— 点员工对话
 
 ### 改了什么

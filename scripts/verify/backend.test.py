@@ -29,7 +29,7 @@ from botoffice.llm.client import LLMClient  # noqa: E402
 from botoffice.llm.providers import Provider, ProviderRegistry  # noqa: E402
 from botoffice.llm.router import ModelBinding, ModelRouter  # noqa: E402
 from botoffice.memory import MemoryStore, private_scope  # noqa: E402
-from botoffice.orchestrator.office import Office  # noqa: E402
+from botoffice.orchestrator.office import OfficeManager  # noqa: E402
 from botoffice.orchestrator.roles import Role, RoleRegistry, RoleScope  # noqa: E402
 from botoffice.orchestrator.tasks import Orchestrator  # noqa: E402
 
@@ -75,7 +75,7 @@ def build() -> tuple[dict, Orchestrator]:
 
     memory = MemoryStore(Path("data/test-memory.json"), bus=bus)
     memory._entries.clear()
-    office = Office()
+    offices = OfficeManager()
     tools = ToolRegistry()
     from botoffice.agent.builtin_tools import register_files_tools
 
@@ -83,12 +83,12 @@ def build() -> tuple[dict, Orchestrator]:
     client = LLMClient(providers)
     router = ModelRouter(providers, client)
     runtime = AgentRuntime(router, tools, memory, bus)
-    orchestrator = Orchestrator(roles, office, runtime, memory, bus)
-    office.assign_desk(roles.get("alice"))
-    office.assign_desk(roles.get("bob"))
+    orchestrator = Orchestrator(roles, offices, runtime, memory, bus)
+    offices.office_for("general").assign_desk(roles.get("alice"))
+    offices.office_for("general").assign_desk(roles.get("bob"))
 
     return {"bus": bus, "events": events, "memory": memory, "roles": roles,
-            "office": office, "tools": tools, "providers": providers}, orchestrator
+            "offices": offices, "tools": tools, "providers": providers}, orchestrator
 
 
 async def main() -> int:
@@ -111,7 +111,7 @@ async def main() -> int:
     print("=== 2. handoff at a desk ===")
     result = await orchestrator.handoff("alice", "bob", "Frontend is done, backend please continue")
     check("handoff produced two messages", len(result.messages) == 2)
-    desk = ctx["office"].desk_of("bob").as_list()
+    desk = ctx["offices"].office_for("general").desk_of("bob").as_list()
     check(
         "sender walked to the receiver's desk",
         any(m["to"] == desk for m in events if m["type"] == "agent.move"),

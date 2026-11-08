@@ -157,3 +157,23 @@ class Office:
             "desks": self.all_desks(),
             "bounds": self.room_bounds(),
         }
+
+
+class OfficeManager:
+    """One office per team.
+
+    Teams are independent: each has its own desks, its own bounds and its
+    own landmarks, so switching team in the GUI switches the whole scene.
+    """
+
+    def __init__(self) -> None:
+        self._offices: dict[str, Office] = {}
+
+    def office_for(self, team: str | None) -> Office:
+        key = (team or "general").strip() or "general"
+        if key not in self._offices:
+            self._offices[key] = Office()
+        return self._offices[key]
+
+    def teams(self) -> list[str]:
+        return sorted(self._offices)
