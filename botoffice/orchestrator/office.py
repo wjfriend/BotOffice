@@ -30,8 +30,8 @@ ROOM = {"min_x": -14.0, "max_x": 14.0, "min_z": -12.0, "max_z": 12.0}
 ZONES = {
     "meeting": {"x": -13.0, "z": -11.4, "w": 12.0, "d": 6.0, "color": "#c9772f"},
     "work": {"x": -7.0, "z": -4.0, "w": 16.0, "d": 9.0, "color": "#3f7f6f"},
-    "boss": {"x": -13.2, "z": 6.0, "w": 5.0, "d": 5.2, "color": "#8a4a4a"},
-    "lounge": {"x": 8.0, "z": -10.0, "w": 5.4, "d": 6.0, "color": "#8a6a52"},
+    "boss": {"x": 8.2, "z": -10.4, "w": 5.2, "d": 6.0, "color": "#8a4a4a"},
+    "lounge": {"x": -13.2, "z": 5.6, "w": 5.2, "d": 5.6, "color": "#8a6a52"},
     "pantry": {"x": 8.0, "z": 4.6, "w": 5.4, "d": 6.0, "color": "#d9d3c6"},
 }
 
@@ -40,7 +40,7 @@ MEETING_ROOM_RADIUS = 2.6
 
 # The owner (the human using the app) sits in the boss office.
 BOSS_ID = "me"
-BOSS_SPOT = (-10.7, 8.6)
+BOSS_SPOT = (10.4, -7.6)
 
 # Where people come in.
 ENTRANCE = (0.0, 11.4)
