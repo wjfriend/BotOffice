@@ -38,7 +38,7 @@ from PySide6.QtGui import (
 # Isometric tile size. The scene scales these down when the room grows so
 # that every desk stays visible without scrolling.
 BASE_TILE_W = 46.0
-BASE_TILE_H = 23.0
+BASE_TILE_H = 34.0
 WALK_FRAMES = 5
 
 # Wall height in screen pixels (not scaled: it reads as a fixed ceiling).
@@ -292,14 +292,16 @@ class OfficeScene:
         return max(0.8, min(1.55, self.tile_w / BASE_TILE_W))
 
     def to_screen(self, x: float, z: float, height: float = 0.0) -> QPointF:
-        sx = (x - z) * self.tile_w / 2 + self._offset_x
-        sy = (x + z) * self.tile_h / 2 - height + self._offset_y
+        """Three-quarter top-down: x runs right, z runs down and is squashed."""
+        sx = x * self.tile_w + self._offset_x
+        sy = z * self.tile_h - height + self._offset_y
         return QPointF(sx, sy)
 
     def to_world(self, sx: float, sy: float) -> tuple[float, float]:
-        a = (sx - self._offset_x) / (self.tile_w / 2)
-        b = (sy - self._offset_y) / (self.tile_h / 2)
-        return ((a + b) / 2, (b - a) / 2)
+        return (
+            (sx - self._offset_x) / self.tile_w,
+            (sy - self._offset_y) / self.tile_h,
+        )
 
     def fit_room(self, width: int, height: int) -> None:
         """Scale the tiles so the whole room fits the viewport.
@@ -308,14 +310,14 @@ class OfficeScene:
         shrinks the tiles only as far as a readable minimum.
         """
         b = self.bounds
-        span_x = (b["max_x"] - b["min_x"]) + (b["max_z"] - b["min_z"])
-        span_z = (b["max_x"] - b["min_x"]) + (b["max_z"] - b["min_z"])
+        span_x = b["max_x"] - b["min_x"]
+        span_z = b["max_z"] - b["min_z"]
         if span_x <= 0 or span_z <= 0:
             return
-        needed_w = span_x * BASE_TILE_W / 2
-        needed_h = span_z * BASE_TILE_H / 2
-        scale_w = (width - 80) / needed_w if needed_w > 0 else 1.0
-        scale_h = (height - 150) / needed_h if needed_h > 0 else 1.0
+        needed_w = span_x * BASE_TILE_W
+        needed_h = span_z * BASE_TILE_H
+        scale_w = (width - 140) / needed_w if needed_w > 0 else 1.0
+        scale_h = (height - 240) / needed_h if needed_h > 0 else 1.0
         scale = min(1.9, scale_w, scale_h)
         scale = max(scale, 0.42)  # keep avatars readable
         self.tile_w = BASE_TILE_W * scale
@@ -333,8 +335,8 @@ class OfficeScene:
         b = self.bounds
         centre_x = (b["min_x"] + b["max_x"]) / 2
         centre_z = (b["min_z"] + b["max_z"]) / 2
-        raw_x = (centre_x - centre_z) * self.tile_w / 2
-        raw_y = (centre_x + centre_z) * self.tile_h / 2
+        raw_x = centre_x * self.tile_w
+        raw_y = centre_z * self.tile_h
         self._offset_x = width / 2 - raw_x
         self._offset_y = height / 2 - raw_y + 40
 
@@ -368,7 +370,7 @@ class OfficeScene:
         self._draw_overlays(painter)
 
     def _sorted_avatars(self) -> list[Avatar]:
-        return sorted(self.avatars.values(), key=lambda a: a.x + a.z)
+        return sorted(self.avatars.values(), key=lambda a: a.z)
 
     # ------------------------------------------------------------ geometry
 
@@ -406,7 +408,7 @@ class OfficeScene:
         pixmap = self.sprites.get(name)
         if pixmap is None:
             return False
-        target_w = max(1.0, world_width * self.tile_w / 2)
+        target_w = max(1.0, world_width * self.tile_w)
         scale = target_w / pixmap.width()
         target_h = pixmap.height() * scale
         base = self.to_screen(x, z)
@@ -425,8 +427,8 @@ class OfficeScene:
             painter.setBrush(QBrush(QColor(0, 0, 0, alpha)))
             painter.drawEllipse(
                 QPointF(centre.x(), centre.y()),
-                rx * self.tile_w / 2 * scale,
-                ry * self.tile_h / 2 * scale,
+                rx * self.tile_w * scale,
+                ry * self.tile_h * scale,
             )
 
     def _box(self, painter: QPainter, x: float, z: float, w: float, d: float,
@@ -533,7 +535,7 @@ class OfficeScene:
     def _draw_entrance(self, painter: QPainter) -> None:
         """The door people come in through, on the front edge."""
         ex, ez = self.entrance
-        if self._sprite(painter, "door", ex, ez, 3.4):
+        if self._sprite(painter, "door", ex, ez, 2.2):
             return
         left = self.to_screen(ex - 1.7, ez)
         right = self.to_screen(ex + 1.7, ez)
@@ -657,10 +659,10 @@ class OfficeScene:
             color = RUG_COLORS[index % len(RUG_COLORS)]
             painter.setBrush(QBrush(color))
             painter.setPen(QPen(color.darker(150), 1))
-            painter.drawPolygon(self._quad(item.x - 1.35, item.z - 1.05, 2.7, 2.1, 1.0))
+            painter.drawPolygon(self._quad(item.x - 1.05, item.z - 0.85, 2.1, 1.7, 1.0))
             painter.setBrush(QBrush(color.lighter(118)))
             painter.setPen(Qt.NoPen)
-            painter.drawPolygon(self._quad(item.x - 1.15, item.z - 0.85, 2.3, 1.7, 1.6))
+            painter.drawPolygon(self._quad(item.x - 0.9, item.z - 0.7, 1.8, 1.4, 1.6))
 
     def _zone(self, painter: QPainter, x: float, z: float, w: float, d: float,
               color: QColor) -> None:
@@ -900,8 +902,6 @@ class OfficeScene:
         painter.drawRoundedRect(QRectF(screen.x() - 7, screen.y() - 6, 14, 9), 1, 1)
 
     def _draw_meeting_set(self, painter: QPainter, mx: float, mz: float) -> None:
-        if self._sprite(painter, "table", mx, mz, 3.2):
-            return
         top = self.to_screen(mx, mz, 20)
         rx = 1.7 * self.tile_w / 2
         ry = 1.7 * self.tile_h / 2
@@ -934,13 +934,13 @@ class OfficeScene:
             painter.drawEllipse(tip, 7, 11)
 
     def _draw_furniture(self, painter: QPainter) -> None:
-        for item in sorted(self.furniture, key=lambda f: f.x + f.z):
+        for item in sorted(self.furniture, key=lambda f: f.z):
             if item.kind != "desk":
                 continue
             self._draw_desk(painter, item.x, item.z, item.owner)
 
     def _draw_desk(self, painter: QPainter, x: float, z: float, owner: str) -> None:
-        if self._sprite(painter, "desk", x, z, 2.0):
+        if self._sprite(painter, "desk", x, z - 0.75, 2.6):
             return
         self._shadow(painter, x, z + 0.2, 2.2, 1.6)
 

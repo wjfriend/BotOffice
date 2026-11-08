@@ -45,8 +45,6 @@ MAPPING: dict[str, list[Path]] = {
     "mug": [PROPS / "Props" / "office_props_mug_01.png"],
     "papers": [PROPS / "Props" / "office_props_papers_stack_01.png"],
     # The 16x16 sample covers what the 3/4 pack leaves out.
-    "sofa": [SAMPLE / "sofa.png"],
-    "table": [SAMPLE / "coffee_table.png"],
     "door": [SAMPLE / "door_wood.png"],
     "whiteboard": [SAMPLE / "whiteboard.png"],
     "cooler": [SAMPLE / "water_dispenser.png"],
