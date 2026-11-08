@@ -66,6 +66,12 @@ class OfficeContext:
         )
         self.board = TaskBoard(self.bus)
         self.ingest = BusIngest(self)
+        self.agent_usage: dict[str, dict] = {}
+        self.agent_action: dict[str, str] = {}
+        self.bus.subscribe("agent.usage", self._on_usage)
+        self.bus.subscribe("agent.say", self._on_say)
+        self.bus.subscribe("agent.tool_call", self._on_tool_call)
+
         self.orchestrator = Orchestrator(
             self.roles, self.offices, self.runtime, self.memory, self.bus
         )
@@ -73,6 +79,22 @@ class OfficeContext:
         # Give every loaded role a desk in its own team's office.
         for role in self.roles.list():
             self.offices.office_for(role.team).assign_desk(role)
+
+    def _on_usage(self, event: dict) -> None:
+        self.agent_usage[event.get("id", "")] = {
+            "tokens": int(event.get("tokens") or 0),
+            "limit": int(event.get("limit") or 0),
+        }
+
+    def _on_say(self, event: dict) -> None:
+        text = str(event.get("text", "")).strip()
+        if text:
+            self.agent_action[event.get("id", "")] = text[:80]
+
+    def _on_tool_call(self, event: dict) -> None:
+        tool = event.get("tool", "")
+        if tool:
+            self.agent_action[event.get("id", "")] = f"using {tool}"[:80]
 
     def hire(self, role: Role) -> Role:
         """Add one employee and give it a desk.
@@ -242,7 +264,14 @@ def create_app(context: OfficeContext | None = None) -> FastAPI:
             roles = [role for role in roles if role.team == team]
         office = ctx.offices.office_for(team or "general")
         return {
-            "roles": [role.as_dict() for role in roles],
+            "roles": [
+                {
+                    **role.as_dict(),
+                    "usage": ctx.agent_usage.get(role.id, {}),
+                    "action": ctx.agent_action.get(role.id, ""),
+                }
+                for role in roles
+            ],
             "providers": [p.redacted() for p in ctx.providers.list()],
             "tools": [t.name for t in ctx.tools.list()],
             "memory": ctx.memory.stats(),

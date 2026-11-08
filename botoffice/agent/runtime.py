@@ -159,6 +159,11 @@ class AgentRuntime:
         # own folder without changing every call site.
         self.registry_for = registry_for
 
+    def _finish(self, role, turn: AgentTurn, budget: int) -> AgentTurn:
+        """Report how much context this turn used, for the staff gauge."""
+        self.bus.publish("agent.usage", id=role.id, tokens=turn.tokens, limit=budget)
+        return turn
+
     async def run(
         self,
         role,
@@ -196,7 +201,7 @@ class AgentRuntime:
             except Exception as exc:  # noqa: BLE001 - report and stop the loop
                 self.bus.publish("agent.error", id=role.id, error=str(exc))
                 turn.text = turn.text or f"Model call failed: {exc}"
-                return turn
+                return self._finish(role, turn, budget)
 
             turn.provider_id = provider_id
             turn.tokens += estimate_tokens(raw)
@@ -207,7 +212,7 @@ class AgentRuntime:
                 self.bus.publish("agent.say", id=role.id, text=action["say"])
 
             if not action["tool"]:
-                return turn
+                return self._finish(role, turn, budget)
 
             tool_name = action["tool"]
             if not any(spec["name"] == tool_name for spec in tool_specs):

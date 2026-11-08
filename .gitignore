@@ -26,3 +26,8 @@ refs/
 
 # Per-install employee list (config/roles.example.json is the template)
 config/roles.json
+
+# Downloaded art packs and the sprites copied from them. Their licences
+# allow shipping inside a built app, but not redistributing the source files.
+resource/
+assets/

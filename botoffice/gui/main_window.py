@@ -867,6 +867,13 @@ class MainWindow(QMainWindow):
             model = role.get("llm", {}).get("primary") or runtime or t("msg.no_model")
             name = html_lib.escape(str(role.get("name", "")))
             role_name = html_lib.escape(str(role.get("role") or t("msg.no_role")))
+            action = html_lib.escape(str(role.get("action") or ""))
+            usage = role.get("usage") or {}
+            gauge = self._gauge_html(int(usage.get("tokens") or 0), int(usage.get("limit") or 0))
+            action_html = (
+                f"<br><span style='color:#8fa0b8;font-size:11px;'>{action}</span>"
+                if action else ""
+            )
             rows.append(
                 "<tr>"
                 f"<td width='14' valign='top' style='padding:7px 6px 7px 0;'>"
@@ -877,6 +884,7 @@ class MainWindow(QMainWindow):
                 f"<span style='color:#6f7d93;font-size:11px;'>"
                 f"{html_lib.escape(rank)} · {html_lib.escape(kind)} · "
                 f"{html_lib.escape(str(model))}</span>"
+                f"{action_html}{gauge}"
                 f"</td>"
                 f"<td valign='top' align='right' style='padding:7px 0;'>"
                 f"<span style='color:{color};font-size:11px;'>{label}</span></td>"
@@ -887,6 +895,23 @@ class MainWindow(QMainWindow):
         else:
             html = f"<p style='color:#93a0b8'>{t('staff.empty')}</p>"
         self.staff_view.setHtml(html)
+
+    @staticmethod
+    def _gauge_html(tokens: int, limit: int) -> str:
+        """A small context gauge: eight cells, colour escalating as it fills."""
+        if limit <= 0:
+            return ""
+        filled = max(0, min(8, round(tokens / limit * 8)))
+        color = "#e8756a" if filled >= 7 else "#f2cd37" if filled >= 6 else "#5b8fd6"
+        cells = "".join(
+            f"<td style='width:9px;height:5px;background:"
+            f"{color if index < filled else '#2e3950'};'></td>"
+            for index in range(8)
+        )
+        return (
+            f"<table cellspacing='1' cellpadding='0'><tr>{cells}</tr></table>"
+            f"<span style='color:#6f7d93;font-size:10px;'>{tokens} / {limit}</span>"
+        )
 
     def record_activity(self, event: dict) -> None:
         line = self._format_event(event)
