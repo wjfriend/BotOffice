@@ -1,0 +1,31 @@
+[project]
+name = "botoffice"
+version = "0.1.0"
+description = "A free, open-source virtual office where AI agents work together"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# Browser control. Without it the office still runs; the browser tool is
+# simply not registered (constraint 19 in CLAUDE.md).
+browser = ["browser-use>=0.13"]
+# Desktop control. Requires an isolated desktop session to be safe.
+desktop = ["tarsier-ai>=0.1"]
+gui = ["PySide6==6.12.0"]
+
+[project.scripts]
+botoffice = "botoffice.gui.app:main"
+botoffice-cli = "botoffice.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["botoffice*"]

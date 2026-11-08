@@ -1,0 +1,277 @@
+{
+  "roles": [
+    {
+      "id": "alice",
+      "name": "Alice",
+      "role": "前端工程师",
+      "kind": "builtin",
+      "department": "frontend",
+      "leader": true,
+      "responsibilities": "负责前端工程师工作",
+      "scope": {
+        "memory_read": [
+          "global",
+          "dept:frontend",
+          "private:alice"
+        ],
+        "memory_write": [
+          "global",
+          "dept:frontend",
+          "private:alice"
+        ],
+        "tools": []
+      },
+      "llm": {
+        "primary": "mock",
+        "fallback": "",
+        "prefer_cheap": false,
+        "budget_tokens": 8000,
+        "extra": {}
+      },
+      "desk": [
+        -6.0,
+        -3.6
+      ],
+      "avatar": "",
+      "external": {}
+    },
+    {
+      "id": "bob",
+      "name": "Bob",
+      "role": "后端工程师",
+      "kind": "builtin",
+      "department": "backend",
+      "leader": false,
+      "responsibilities": "负责后端工程师工作",
+      "scope": {
+        "memory_read": [
+          "global",
+          "dept:backend",
+          "private:bob"
+        ],
+        "memory_write": [
+          "dept:backend",
+          "private:bob"
+        ],
+        "tools": []
+      },
+      "llm": {
+        "primary": "mock",
+        "fallback": "",
+        "prefer_cheap": false,
+        "budget_tokens": 8000,
+        "extra": {}
+      },
+      "desk": [
+        -3.1,
+        -3.6
+      ],
+      "avatar": "",
+      "external": {}
+    },
+    {
+      "id": "carol",
+      "name": "Carol",
+      "role": "产品经理",
+      "kind": "builtin",
+      "department": "product",
+      "leader": false,
+      "responsibilities": "负责产品经理工作",
+      "scope": {
+        "memory_read": [
+          "global",
+          "dept:product",
+          "private:carol"
+        ],
+        "memory_write": [
+          "dept:product",
+          "private:carol"
+        ],
+        "tools": []
+      },
+      "llm": {
+        "primary": "mock",
+        "fallback": "",
+        "prefer_cheap": false,
+        "budget_tokens": 8000,
+        "extra": {}
+      },
+      "desk": [
+        -0.2,
+        -3.6
+      ],
+      "avatar": "",
+      "external": {}
+    },
+    {
+      "id": "dave",
+      "name": "Dave",
+      "role": "测试工程师",
+      "kind": "builtin",
+      "department": "qa",
+      "leader": false,
+      "responsibilities": "负责测试工程师工作",
+      "scope": {
+        "memory_read": [
+          "global",
+          "dept:qa",
+          "private:dave"
+        ],
+        "memory_write": [
+          "dept:qa",
+          "private:dave"
+        ],
+        "tools": []
+      },
+      "llm": {
+        "primary": "mock",
+        "fallback": "",
+        "prefer_cheap": false,
+        "budget_tokens": 8000,
+        "extra": {}
+      },
+      "desk": [
+        2.7,
+        -3.6
+      ],
+      "avatar": "",
+      "external": {}
+    },
+    {
+      "id": "erin",
+      "name": "Erin",
+      "role": "数据分析师",
+      "kind": "builtin",
+      "department": "data",
+      "leader": false,
+      "responsibilities": "负责数据分析师工作",
+      "scope": {
+        "memory_read": [
+          "global",
+          "dept:data",
+          "private:erin"
+        ],
+        "memory_write": [
+          "dept:data",
+          "private:erin"
+        ],
+        "tools": []
+      },
+      "llm": {
+        "primary": "mock",
+        "fallback": "",
+        "prefer_cheap": false,
+        "budget_tokens": 8000,
+        "extra": {}
+      },
+      "desk": [
+        5.6,
+        -3.6
+      ],
+      "avatar": "",
+      "external": {}
+    },
+    {
+      "id": "frank",
+      "name": "Frank",
+      "role": "运维工程师",
+      "kind": "builtin",
+      "department": "ops",
+      "leader": false,
+      "responsibilities": "负责运维工程师工作",
+      "scope": {
+        "memory_read": [
+          "global",
+          "dept:ops",
+          "private:frank"
+        ],
+        "memory_write": [
+          "dept:ops",
+          "private:frank"
+        ],
+        "tools": []
+      },
+      "llm": {
+        "primary": "mock",
+        "fallback": "",
+        "prefer_cheap": false,
+        "budget_tokens": 8000,
+        "extra": {}
+      },
+      "desk": [
+        8.5,
+        -3.6
+      ],
+      "avatar": "",
+      "external": {}
+    },
+    {
+      "id": "grace",
+      "name": "Grace",
+      "role": "设计师",
+      "kind": "builtin",
+      "department": "design",
+      "leader": false,
+      "responsibilities": "负责设计师工作",
+      "scope": {
+        "memory_read": [
+          "global",
+          "dept:design",
+          "private:grace"
+        ],
+        "memory_write": [
+          "dept:design",
+          "private:grace"
+        ],
+        "tools": []
+      },
+      "llm": {
+        "primary": "mock",
+        "fallback": "",
+        "prefer_cheap": false,
+        "budget_tokens": 8000,
+        "extra": {}
+      },
+      "desk": [
+        -6.0,
+        -1.0
+      ],
+      "avatar": "",
+      "external": {}
+    },
+    {
+      "id": "henry",
+      "name": "Henry",
+      "role": "文档工程师",
+      "kind": "builtin",
+      "department": "docs",
+      "leader": false,
+      "responsibilities": "负责文档工程师工作",
+      "scope": {
+        "memory_read": [
+          "global",
+          "dept:docs",
+          "private:henry"
+        ],
+        "memory_write": [
+          "dept:docs",
+          "private:henry"
+        ],
+        "tools": []
+      },
+      "llm": {
+        "primary": "mock",
+        "fallback": "",
+        "prefer_cheap": false,
+        "budget_tokens": 8000,
+        "extra": {}
+      },
+      "desk": [
+        -3.1,
+        -1.0
+      ],
+      "avatar": "",
+      "external": {}
+    }
+  ]
+}

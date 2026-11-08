@@ -1,0 +1,181 @@
+# Changelog — 开发纪事
+
+---
+
+## 2026-11-08（第四轮）— 画风对齐 GrokBot + Windows 启动器
+
+### 改了什么
+
+| 文件 | 变更 |
+|---|---|
+| `botoffice/gui/scene.py` | 整体重画：木地板、落地窗（天空渐变 + 云 + 城市天际线）、每张工位下的**彩色地毯**、所有家具改为**不透明**实体（顶面 + 两个受光侧面） |
+| `botoffice/gui/scene.py` | 新增 `_box()` 统一实体绘制；新增 `_shadow()` 接触阴影；`_draw_office_room()` 用实体浅蓝墙体替代半透明玻璃盒 |
+| `botoffice/gui/__main__.py` | **新增**：`python -m botoffice.gui` 之前直接报 `No module named botoffice.gui.__main__` |
+| `BotOffice.bat` | **新增**：项目根目录双击启动 |
+| `scripts/run.bat` | **新增**：Windows 原生启动器（建 venv、装依赖、启动），支持 `--check` |
+| `README.md` / `CLAUDE.md` / `docs/architecture.md` | 补充 Windows 启动方式 |
+
+### 为什么改
+
+用户反馈：
+
+1. 家具是半透明的、画风差很多，截图 1（GrokBot）那种更好看，3D/2.5D 无所谓。
+2. Windows 上 `bash scripts/run.sh` 报「没有已安装的 WSL 分发」，要能双击一键启动。
+
+### 修复的真实 bug
+
+1. **家具半透明**：旧 `_draw_box()` 对所有侧面调用 `setAlpha(90)`，导致冰箱、书架、吧台全部半透。新 `_box()` 用 `darker()` 做明暗，**完全不使用 alpha**（只有阴影用）。
+2. **启动器根本跑不起来**：`botoffice/gui` 缺少 `__main__.py`，`python -m botoffice.gui` 直接失败。之前只验证了截图脚本 `demo_snapshot.py`，没验证真正的启动路径——这是上一轮汇报里「能跑」的说法不严谨。
+3. **Windows 无启动器**：项目声明支持 Windows，却只提供 `.sh`。
+
+### 如何验证
+
+| 项 | 结果 |
+|---|---|
+| `bash scripts/lint.sh` | LINT OK |
+| `scripts/verify/backend.test.py` | ALL CHECKS PASSED |
+| `scripts/verify/employee.test.py` | ALL CHECKS PASSED |
+| `scripts\run.bat --check` | Setup OK |
+| 双击 `BotOffice.bat`（实测） | 进程持续运行，窗口正常 |
+| `python -m botoffice.gui`（实测） | 进程持续运行 |
+
+### 未验证
+
+- 没有在真实显示器上长时间观察 30fps 流畅度。
+- 乐高风格没有采用：用户最终选择截图 1（GrokBot）那种观感。
+
+---
+
+## 2026-11-08（第三轮）— 场景与角色重画
+
+### 改了什么
+
+| 文件 | 变更 |
+|---|---|
+| `botoffice/gui/scene.py` | 木地板、窗户（带云）、白板、公告板、挂钟、茶水间（吧台/咖啡机/饮水机/冰箱）、沙发区（地毯/落地灯/边几）、书架（彩色书脊）、打印机、办公区地毯、圆桌会议室（带椅子）、桌上键盘/杯子/纸张 |
+| `botoffice/gui/scene.py` | 角色改为更可爱的比例：大头、腮红、高光眼、眨眼、三种发型、眼镜、粉彩衣服、小短腿 |
+| `botoffice/gui/scene.py` | 角色随房间缩放（`avatar_scale`），房间放大后小人不会显得像蚂蚁 |
+| `botoffice/orchestrator/office.py` | 修复 `room_bounds()` 没算 Leader 办公室，导致玻璃办公室画在地板外面 |
+
+### 为什么改
+
+用户反馈：「小人太丑了，办公室太简陋了，pixtuoid 就很生动」。
+
+参考 pixtuoid 的做法（**不复制其素材与代码**）：它的生动感来自完整的
+生活化场景（茶水间、冰箱、饮水机、沙发、书架、白板、挂钟、宠物、植物）
+加上像素级角色动作。本轮按同样思路用 QPainter 重新实现。
+
+### 如何验证
+
+| 项 | 结果 |
+|---|---|
+| `bash scripts/lint.sh` | LINT OK |
+| `scripts/verify/backend.test.py` | ALL CHECKS PASSED |
+| `scripts/verify/employee.test.py` | ALL CHECKS PASSED |
+| `python scripts/demo_snapshot.py docs/office-demo.png` | 截图正常 |
+
+### 未验证
+
+- 没有在真实显示器上长时间观察动画流畅度（只做了截图与帧偏移稳定性检查）。
+- 宠物（猫/狗）、日夜光照、外部景观尚未实现。
+
+---
+
+## 2026-11-08（第二轮）— 新建对话 / 看板 / 可爱化
+
+### 改了什么
+
+| 文件 | 变更 |
+|---|---|
+| `botoffice/orchestrator/board.py` | 新增：订阅事件总线，把任务投影成看板卡片 |
+| `botoffice/orchestrator/roles.py` | 新增 `rank` 字段与 `can()` 权限判断；leader 与 rank 自动同步 |
+| `botoffice/app.py` | 新增 `POST /api/employees`（新建对话，首个自动成为 Lead）、`GET /api/tasks`；`ctx.hire()` 统一入口 |
+| `botoffice/gui/main_window.py` | 新增「新建对话」按钮与对话框（Agent 类型 / 平台 / 外观颜色）、「看板」页签 |
+| `botoffice/gui/scene.py` | 小人改可爱比例（大头、腮红、高光眼、眨眼、粉彩衣）；状态色点；敲键盘动画；背景渐变；场景随房间缩放 |
+| `botoffice/gui/app.py` | 事件流改走 Qt 信号回主线程，避免跨线程操作控件 |
+| `scripts/verify/employee.test.py` | 新增：验证首个员工成为 Lead、外部 runtime、未知平台拒绝、看板接口 |
+| `scripts/demo_snapshot.py` | 新增：开发用截图脚本 |
+
+### 为什么改
+
+1. 用户要求「在我这个 app 里新建对话然后选择 Claude Code，它就是第一个 agent / Lead」。
+2. 用户想要「类似小游戏场景的虚拟 AI 办公室」，要有看板。
+3. 用户反馈「动画一直闪烁」「没有那么可爱」。
+
+### 如何验证
+
+| 项 | 结果 |
+|---|---|
+| `bash scripts/lint.sh` | LINT OK |
+| `python scripts/verify/backend.test.py` | ALL CHECKS PASSED |
+| `python scripts/verify/employee.test.py` | ALL CHECKS PASSED |
+| `python scripts/demo_snapshot.py docs/office-demo.png` | 截图正常，小人/气泡/看板都在 |
+
+### 修复的真实 bug
+
+`OfficeScene.center_on()` 原来用「带旧偏移的屏幕坐标」反推新偏移，公式为
+`new = W/2 - (S + old)`，展开后是 `new = K - old`，会**每帧来回跳**，
+表现为画面闪烁；放大房间后一帧就把房间甩出屏幕（整屏只剩背景）。
+改为用无偏移的原始等距投影计算，连续 4 帧偏移一致。
+
+### 未验证
+
+- 外部 CLI（Claude Code / Codex）尚未真正接钩子，目前只是登记为 `kind: external`。
+- 材料库、`hire_employee` 工具尚未实现。
+
+---
+
+## 2026-11-08 — 产品模型重定义 + 文档拆分
+
+### 改了什么
+
+| 文件 | 变更 |
+|---|---|
+| `CLAUDE.md` | 精简为项目级约束，架构细节移出 |
+| `docs/architecture.md` | 新建：六层结构、目录、数据流、配置规范、线程模型 |
+| `docs/rules.md` | 新建：事件协议、状态机、记忆、材料库、职级、选型、Agent Bus、API |
+| `docs/status.md` | 新建：里程碑与验证现状 |
+| `docs/dev-rule.md` | 新建：交付检查清单 |
+| `docs/changelog.md` | 本文件 |
+
+### 为什么改
+
+用户明确要求：
+
+1. 产品重新定义——BotOffice 本身是 Agent，也能把其他 Agent 拉进办公室组队。
+2. Lead 可以是外部 Agent：在应用里「新建对话」选 Claude Code，它就成为第一个员工 / Lead。
+3. 材料库共享：资料只存一份，按需检索，不塞进每个人上下文。
+4. CLAUDE.md 太长，架构移到 `architecture.md`，只留项目级必须遵守的东西。
+
+### 如何验证
+
+- 文档结构：`ls docs/`
+- 语法门禁：`bash scripts/lint.sh`
+
+### 未验证
+
+- 代码尚未实现 M3/M4 的新能力，文档是设计先行。
+
+---
+
+## 2026-11-07 — M1 + M2 跑通
+
+### 改了什么
+
+- 后端：事件总线、四层记忆、压缩流水线、三协议 LLM、Agent 循环、状态机、四种交互、成本统计。
+- GUI：PySide6 原生窗口、QPainter 等距 2.5D、无限工位、拖拽开聊、五个侧边页签。
+
+### 验证
+
+| 项 | 结果 |
+|---|---|
+| `bash scripts/lint.sh` | LINT OK |
+| `scripts/verify/backend.test.py` | ALL CHECKS PASSED（19 项） |
+| 8 人办公室 | avatars: 8 |
+| 拖拽开聊 | OK conversation happened |
+| 原生窗口 | windows / winId > 0 |
+
+### 未验证
+
+- 真实 LLM 平台（只跑了 mock）。
+- 浏览器 / 桌面工具（可选依赖未装）。

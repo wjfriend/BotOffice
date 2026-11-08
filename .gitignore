@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Virtual environment
+.venv/
+venv/
+
+# Runtime data: memory, logs, local state
+data/
+log/
+*.log
+
+# Secrets
+.env
+
+# Editor
+.vscode/
+.idea/
+
+# Reference clones: read-only, not part of the project
+refs/
+
+# Per-install employee list (config/roles.example.json is the template)
+config/roles.json
