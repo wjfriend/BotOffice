@@ -2,6 +2,38 @@
 
 ---
 
+## 2026-11-08（第六轮）— Agent Bus：外部 CLI 接入
+
+### 改了什么
+
+| 文件 | 变更 |
+|---|---|
+| `botoffice/external/ingest.py` | **新增**：校验钩子 payload，把 `session_start / tool_use / task_complete / session_end / heartbeat / permission_request` 映射成办公室事件；首次见到某个 runtime 时自动创建外部员工并分配工位 |
+| `botoffice/app.py` | 新增 `POST /api/bus/events`、`GET /api/bus/agents` |
+| `scripts/hooks/botoffice-hook.py` | **新增**：读 stdin → POST 到 hub → 退出。200ms 超时、永远 exit 0、不写 stdout；把 CLI 的钩子名（如 `PostToolUse`）映射成我们的总线事件 |
+| `botoffice/gui/app.py` / `server.py` | 启动时写 `data/hub.port`，钩子无需配置即可找到端口 |
+| `scripts/verify/bus.test.py` | **新增**：覆盖事件映射、自动建员工、未知事件 400、钩子契约（不阻塞、不写 stdout、正确映射） |
+
+### 为什么改
+
+用户要求「继续 A：接 Claude Code 钩子」。这是让办公室真正跟着外部 CLI 动起来的第一步。
+
+### 如何验证
+
+| 项 | 结果 |
+|---|---|
+| `bash scripts/lint.sh` | LINT OK |
+| `scripts/verify/bus.test.py` | ALL CHECKS PASSED（含钩子子进程测试） |
+| `scripts/verify/backend.test.py` | ALL CHECKS PASSED |
+| `scripts/verify/employee.test.py` | ALL CHECKS PASSED |
+
+### 未验证
+
+- **还没有把钩子写进真实的 Claude Code 配置**（`~/.claude/settings.json`），需要用户授权。
+- 没有在真实 Claude Code 会话里端到端跑过。
+
+---
+
 ## 2026-11-08（第五轮）— 英文 UI、GrokBot 侧栏、体素小人、稳定性
 
 ### 改了什么
