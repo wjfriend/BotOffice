@@ -601,32 +601,19 @@ class OfficeScene:
 
     def _draw_wall(self, painter: QPainter, start: tuple[float, float],
                    end: tuple[float, float]) -> None:
-        """A wall standing on one floor edge.
-
-        The wall rises along the edge's normal, not straight up, so it stays
-        at a right angle to the slanted floor.
-        """
+        """A wall standing straight up from one floor edge."""
         a = self.to_screen(*start)
         b = self.to_screen(*end)
-        dx = b.x() - a.x()
-        dy = b.y() - a.y()
-        length = math.hypot(dx, dy) or 1.0
-        nx, ny = -dy / length, dx / length
-        if ny > 0:
-            nx, ny = -nx, -ny
-
-        top_a = QPointF(a.x() + nx * WALL_H, a.y() + ny * WALL_H)
-        top_b = QPointF(b.x() + nx * WALL_H, b.y() + ny * WALL_H)
-
         painter.setBrush(QBrush(WALL))
         painter.setPen(QPen(WALL_EDGE, 1))
-        painter.drawPolygon(QPolygonF([a, b, top_b, top_a]))
-
+        painter.drawPolygon(QPolygonF([
+            a, b, QPointF(b.x(), b.y() - WALL_H), QPointF(a.x(), a.y() - WALL_H),
+        ]))
         # Lower band, so the wall has a base like a real room.
-        base_a = QPointF(a.x() + nx * 16, a.y() + ny * 16)
-        base_b = QPointF(b.x() + nx * 16, b.y() + ny * 16)
         painter.setBrush(QBrush(WALL_LOWER))
-        painter.drawPolygon(QPolygonF([a, b, base_b, base_a]))
+        painter.drawPolygon(QPolygonF([
+            a, b, QPointF(b.x(), b.y() - 16), QPointF(a.x(), a.y() - 16),
+        ]))
 
     def _draw_window_band(self, painter: QPainter, wall: str, a: float, b: float,
                           coord: float) -> None:
