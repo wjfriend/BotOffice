@@ -7,7 +7,7 @@ reports the intent; the backend decides what happens (constraint 10).
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, Qt, QTimer, Signal
-from PySide6.QtGui import QMouseEvent, QPainter, QWheelEvent
+from PySide6.QtGui import QImage, QMouseEvent, QPainter, QWheelEvent
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from .scene import OfficeScene
@@ -30,6 +30,7 @@ class SceneWidget(QWidget):
         self._drag_offset = QPointF()
         self._press_pos: QPointF | None = None
         self._last_time = 0
+        self.pixel_scale = 1  # 1 = crisp vector; >1 = pixel-art downscale
 
         # Animation timer: about 30 fps is enough for this style.
         self._timer = QTimer(self)
@@ -48,7 +49,27 @@ class SceneWidget(QWidget):
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt naming
         painter = QPainter(self)
         painter.fillRect(self.rect(), Qt.black)
-        self.scene.draw(painter, self.width(), self.height())
+
+        if self.pixel_scale <= 1:
+            self.scene.antialias = True
+            self.scene.draw(painter, self.width(), self.height())
+            painter.end()
+            return
+
+        # Render small, then blow it up with nearest-neighbour sampling.
+        # That is what turns the vector scene into crisp pixel art without
+        # needing a single image asset.
+        width = max(1, self.width() // self.pixel_scale)
+        height = max(1, self.height() // self.pixel_scale)
+        image = QImage(width, height, QImage.Format_ARGB32_Premultiplied)
+        image.fill(Qt.black)
+        inner = QPainter(image)
+        self.scene.antialias = False
+        self.scene.draw(inner, width, height)
+        inner.end()
+
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, False)
+        painter.drawImage(self.rect(), image)
         painter.end()
 
     # --------------------------------------------------------------- mouse

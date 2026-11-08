@@ -23,6 +23,7 @@ import math
 from dataclasses import dataclass, field
 
 from PySide6.QtCore import QPointF, QRectF, Qt
+from .assets import SpriteSet
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -235,6 +236,8 @@ class OfficeScene:
         self.entrance = (0.0, 11.8)
         self.tile_w = BASE_TILE_W
         self.tile_h = BASE_TILE_H
+        self.antialias = True
+        self.sprites = SpriteSet()
 
     def set_stats(self, stats: dict) -> None:
         """Numbers shown on the digital board on the wall."""
@@ -342,7 +345,7 @@ class OfficeScene:
         self._view_w = float(width)
         self._view_h = float(height)
         self.center_on(width, height)
-        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setRenderHint(QPainter.Antialiasing, self.antialias)
 
         # Room ambience behind the office.
         gradient = QLinearGradient(0, 0, 0, height)
@@ -392,6 +395,27 @@ class OfficeScene:
                 self.to_screen(coord, b, h2), self.to_screen(coord, a, h2),
             ]
         return QPolygonF(points)
+
+    def _sprite(self, painter: QPainter, name: str, x: float, z: float,
+                world_width: float) -> bool:
+        """Draw assets/<name>.png anchored on the floor.
+
+        Returns False when the file is missing so the caller can fall back
+        to the vector shape.
+        """
+        pixmap = self.sprites.get(name)
+        if pixmap is None:
+            return False
+        target_w = max(1.0, world_width * self.tile_w / 2)
+        scale = target_w / pixmap.width()
+        target_h = pixmap.height() * scale
+        base = self.to_screen(x, z)
+        painter.drawPixmap(
+            QRectF(base.x() - target_w / 2, base.y() - target_h, target_w, target_h),
+            pixmap,
+            QRectF(pixmap.rect()),
+        )
+        return True
 
     def _shadow(self, painter: QPainter, x: float, z: float, rx: float, ry: float) -> None:
         """A soft contact shadow: stacked ellipses fake a blur."""
@@ -509,6 +533,8 @@ class OfficeScene:
     def _draw_entrance(self, painter: QPainter) -> None:
         """The door people come in through, on the front edge."""
         ex, ez = self.entrance
+        if self._sprite(painter, "door", ex, ez, 3.4):
+            return
         left = self.to_screen(ex - 1.7, ez)
         right = self.to_screen(ex + 1.7, ez)
         height = 66.0
@@ -786,9 +812,12 @@ class OfficeScene:
         self._box(painter, x, z, 1.0, 3.2, 24, COUNTER, COUNTER_SIDE)
         self._box(painter, x + 0.15, z + 0.25, 0.7, 0.7, 17, CHAIR, CHAIR_DARK)
         self._draw_water_cooler(painter, x + 0.5, z + 2.9)
-        self._box(painter, x, z + 3.6, 1.0, 1.0, 36, FRIDGE, FRIDGE_SIDE)
+        if not self._sprite(painter, "fridge", x + 0.5, z + 4.1, 1.1):
+            self._box(painter, x, z + 3.6, 1.0, 1.0, 36, FRIDGE, FRIDGE_SIDE)
 
     def _draw_water_cooler(self, painter: QPainter, x: float, z: float) -> None:
+        if self._sprite(painter, "cooler", x, z, 0.9):
+            return
         self._box(painter, x - 0.35, z - 0.35, 0.7, 0.7, 26, QColor("#dfe6ea"), QColor("#aab6bd"))
         top = self.to_screen(x, z, 26)
         painter.setBrush(QBrush(QColor("#8ec8dd")))
@@ -796,6 +825,8 @@ class OfficeScene:
         painter.drawEllipse(QRectF(top.x() - 7, top.y() - 20, 14, 20))
 
     def _draw_lounge(self, painter: QPainter, x: float, z: float) -> None:
+        if self._sprite(painter, "sofa", x + 1.3, z + 0.5, 3.2):
+            return
         painter.setBrush(QBrush(QColor("#b98a7a")))
         painter.setPen(QPen(QColor("#9a6f62"), 1))
         painter.drawPolygon(self._quad(x - 0.5, z - 0.6, 4.3, 3.0, 1.0))
@@ -816,6 +847,8 @@ class OfficeScene:
         ]))
 
     def _draw_bookshelf(self, painter: QPainter, x: float, z: float) -> None:
+        if self._sprite(painter, "shelf", x + 0.45, z + 1.0, 1.4):
+            return
         self._shadow(painter, x + 0.45, z + 1.0, 1.6, 2.6)
         self._box(painter, x, z, 0.9, 2.0, 42, SHELF, DESK_LEG)
         book_colors = ("#d9534f", "#5bc0de", "#5cb85c", "#f0ad4e", "#9b6bd1", "#e8756a")
@@ -834,6 +867,8 @@ class OfficeScene:
                 ]))
 
     def _draw_printer(self, painter: QPainter, x: float, z: float) -> None:
+        if self._sprite(painter, "printer", x + 0.45, z + 0.4, 1.2):
+            return
         self._shadow(painter, x + 0.45, z + 0.4, 1.3, 1.2)
         self._box(painter, x, z, 0.9, 0.8, 20, QColor("#e8ecf0"), QColor("#b3bcc6"))
         top = self.to_screen(x + 0.45, z + 0.4, 20)
@@ -865,6 +900,8 @@ class OfficeScene:
         painter.drawRoundedRect(QRectF(screen.x() - 7, screen.y() - 6, 14, 9), 1, 1)
 
     def _draw_meeting_set(self, painter: QPainter, mx: float, mz: float) -> None:
+        if self._sprite(painter, "table", mx, mz, 3.2):
+            return
         top = self.to_screen(mx, mz, 20)
         rx = 1.7 * self.tile_w / 2
         ry = 1.7 * self.tile_h / 2
@@ -884,6 +921,8 @@ class OfficeScene:
             painter.drawRoundedRect(QRectF(seat.x() - 6, seat.y() - 12, 12, 4), 2, 2)
 
     def _draw_plant(self, painter: QPainter, x: float, z: float) -> None:
+        if self._sprite(painter, "plant", x, z, 1.3):
+            return
         base = self.to_screen(x, z)
         painter.setBrush(QBrush(QColor("#a9764e")))
         painter.setPen(QPen(QColor("#7d563a"), 1))
@@ -901,6 +940,8 @@ class OfficeScene:
             self._draw_desk(painter, item.x, item.z, item.owner)
 
     def _draw_desk(self, painter: QPainter, x: float, z: float, owner: str) -> None:
+        if self._sprite(painter, "desk", x, z, 2.0):
+            return
         self._shadow(painter, x, z + 0.2, 2.2, 1.6)
 
         # Filing cabinet beside the desk, as in a real office layout.
