@@ -21,6 +21,7 @@ PROPS = RESOURCE / "ModernOffice2DProps_v1.0" / "ModernOffice2DProps_v1.0" / "Ti
 
 # A 16x16 top-down sample, used only for pieces the 3/4 pack does not have.
 SAMPLE = RESOURCE / "modern-office-tileset-16x16-free-sample" / "objects"
+OFFICE = RESOURCE / "Office_Pixel_Art_Free_v1.0"
 
 # scene name -> source file. First existing source wins.
 MAPPING: dict[str, list[Path]] = {
@@ -72,6 +73,8 @@ MAPPING: dict[str, list[Path]] = {
     "bottle": [PROPS / "Props" / "office_props_water_bottle_01.png"],
     "headphones": [PROPS / "Props" / "office_props_headphones_01.png"],
     # --- pieces the 3/4 pack does not have --------------------------------
+    "chair_face_down": [OFFICE / "Props" / "Seating" / "office_chair" / "office_chair_front.png"],
+    "chair_back": [OFFICE / "Props" / "Seating" / "office_chair" / "office_chair_back.png"],
     "cooler": [SAMPLE / "water_dispenser.png"],
     "door": [SAMPLE / "door_wood.png"],
     "whiteboard": [SAMPLE / "whiteboard.png"],

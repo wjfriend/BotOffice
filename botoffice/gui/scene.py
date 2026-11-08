@@ -526,7 +526,7 @@ class OfficeScene:
         self._draw_wall(painter, (x0, z0), (x0, z1))
         self._draw_window_band(painter, "z", x0 + 1.0, x1 - 1.0, z0)
         self._draw_window_band(painter, "x", z0 + 1.0, z1 - 1.0, x0)
-        self._draw_digital_board(painter, "z", 2.2, 7.0, z0)
+        self._draw_digital_board(painter, "z", 1.2, 8.2, z0)
         self._draw_clock(painter, "z", x1 - 3.0, z0)
 
 
@@ -569,7 +569,7 @@ class OfficeScene:
         # The back row is drawn first so the table hides it.
         for index in range(5):
             cx = table_x + (index + 0.5) * table_w / 5
-            self._sprite(painter, "chair_meeting", cx, table_z - 0.45, 0.95, flip=True)
+            self._sprite(painter, "chair_back", cx, table_z - 0.45, 0.95)
 
         self._shadow(painter, table_x + table_w / 2, table_z + table_d / 2, 4.0, 1.6)
         self._box(painter, table_x, table_z, table_w, table_d, 20, TABLE, DESK_LEG)
@@ -577,7 +577,7 @@ class OfficeScene:
 
         for index in range(5):
             cx = table_x + (index + 0.5) * table_w / 5
-            self._sprite(painter, "chair_meeting", cx, table_z + table_d + 0.55, 0.95)
+            self._sprite(painter, "chair_face_down", cx, table_z + table_d + 0.55, 0.95)
 
         # A whiteboard at the far right of the room.
         self._sprite(painter, "whiteboard", x + w - 2.4, z + 0.9, 1.8)
@@ -762,7 +762,7 @@ class OfficeScene:
         self._draw_wall(painter, (x0, z0), (x0, z1))
         self._draw_window_band(painter, "z", x0 + 1.0, x1 - 1.0, z0)
         self._draw_window_band(painter, "x", z0 + 1.0, z1 - 1.0, x0)
-        self._draw_digital_board(painter, "z", 2.2, 7.0, z0)
+        self._draw_digital_board(painter, "z", 1.2, 8.2, z0)
         self._draw_clock(painter, "z", x1 - 3.0, z0)
 
 
@@ -805,7 +805,7 @@ class OfficeScene:
         # The back row is drawn first so the table hides it.
         for index in range(5):
             cx = table_x + (index + 0.5) * table_w / 5
-            self._sprite(painter, "chair_meeting", cx, table_z - 0.45, 0.95, flip=True)
+            self._sprite(painter, "chair_back", cx, table_z - 0.45, 0.95)
 
         self._shadow(painter, table_x + table_w / 2, table_z + table_d / 2, 4.0, 1.6)
         self._box(painter, table_x, table_z, table_w, table_d, 20, TABLE, DESK_LEG)
@@ -813,7 +813,7 @@ class OfficeScene:
 
         for index in range(5):
             cx = table_x + (index + 0.5) * table_w / 5
-            self._sprite(painter, "chair_meeting", cx, table_z + table_d + 0.55, 0.95)
+            self._sprite(painter, "chair_face_down", cx, table_z + table_d + 0.55, 0.95)
 
         # A whiteboard at the far right of the room.
         self._sprite(painter, "whiteboard", x + w - 2.4, z + 0.9, 1.8)
@@ -1096,10 +1096,10 @@ class OfficeScene:
     def _draw_kitchen(self, painter: QPainter, x: float, z: float) -> None:
         """The pantry: an L-shaped sofa, a round table, fridge and cooler."""
         self._shadow(painter, x + 1.6, z + 1.6, 3.4, 3.0)
-        self._box(painter, x, z, 3.0, 1.0, 15, SOFA, SOFA_DARK)
-        self._box(painter, x, z, 1.0, 3.0, 15, SOFA, SOFA_DARK)
-        self._box(painter, x, z - 0.35, 3.0, 0.35, 26, SOFA, SOFA_DARK)
-        self._box(painter, x - 0.35, z, 0.35, 3.0, 26, SOFA, SOFA_DARK)
+        self._box(painter, x + 2.2, z + 3.6, 3.0, 1.0, 15, SOFA, SOFA_DARK)
+        self._box(painter, x + 2.2, z + 3.6, 1.0, 2.4, 15, SOFA, SOFA_DARK)
+        self._box(painter, x + 2.2, z + 4.6, 3.0, 0.35, 26, SOFA, SOFA_DARK)
+        self._box(painter, x + 4.85, z + 3.6, 0.35, 2.4, 26, SOFA, SOFA_DARK)
 
         # Round table in the middle of the sofa corner.
         centre = self.to_screen(x + 3.4, z + 3.0, 16)
@@ -1130,6 +1130,8 @@ class OfficeScene:
         self._sprite(painter, "shelf", x + 4.4, z + 1.0, 1.4)
         self._sprite(painter, "plant", x + 1.2, z + 3.8, 1.3)
         self._sprite(painter, "bin", x + 3.2, z + 3.6, 1.0)
+        self._box(painter, x - 0.6, z + 3.0, 1.0, 2.6, 15, SOFA, SOFA_DARK)
+        self._box(painter, x - 0.95, z + 3.0, 0.35, 2.6, 26, SOFA, SOFA_DARK)
 
     def _draw_bookshelf(self, painter: QPainter, x: float, z: float) -> None:
         if self._sprite(painter, "shelf", x + 0.45, z + 1.0, 1.4):
@@ -1168,7 +1170,7 @@ class OfficeScene:
         painter.setPen(QPen(QColor("#a9c6d6"), 1))
         painter.drawPolygon(self._quad(x, z, w, d, 1.0))
 
-        height = 52.0
+        height = WALL_H
         # Front wall with a pair of sliding doors.
         self._sliding_doors(painter, x, z + d, w, height)
         # Left wall; the back is the building's own wall.
@@ -1176,7 +1178,7 @@ class OfficeScene:
 
         # A desk inside.
         self._sprite(painter, "desk_corner", x + w * 0.5, z + d * 0.55, 2.0)
-        self._sprite(painter, "chair_visitor", x + w * 0.5, z + d * 0.9, 0.9)
+        self._sprite(painter, "chair", x + w * 0.5, z + d * 0.78, 1.0)
 
     def _sliding_doors(self, painter: QPainter, x: float, z: float, w: float,
                        height: float) -> None:
@@ -1254,7 +1256,7 @@ class OfficeScene:
                 target_h = desk_pixmap.height() * (target_w / desk_pixmap.width())
                 surface = base.y() - target_h * 0.48
                 self._sprite_at(painter, "monitor", base.x(), surface, 0.95)
-            self._sprite(painter, "chair", x, z + 0.45, 1.1)
+            self._sprite(painter, "chair_face_down", x, z + 0.45, 1.0)
             return
         self._shadow(painter, x, z + 0.2, 2.2, 1.6)
 
