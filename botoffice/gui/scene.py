@@ -42,7 +42,7 @@ BASE_TILE_W = 46.0
 BASE_TILE_H = 30.0
 # How far the floor shifts sideways with depth. This is what makes the room
 # read as an angled 3/4 view instead of a flat top-down plan.
-OBLIQUE_SHEAR = 0.0
+OBLIQUE_SHEAR = -0.65
 # The whole floor plane is rotated counter-clockwise a little, while the
 # furniture sprites stay upright.
 ROOM_ROTATION = math.radians(0.0)
@@ -436,13 +436,28 @@ class OfficeScene:
         if pixmap is None:
             return False
         if flip:
-            pixmap = pixmap.transformed(QTransform().scale(1, -1))
+            pixmap = pixmap.transformed(QTransform().rotate(180))
         target_w = max(1.0, world_width * self.tile_w)
         scale = target_w / pixmap.width()
         target_h = pixmap.height() * scale
         base = self.to_screen(x, z, height)
         painter.drawPixmap(
             QRectF(base.x() - target_w / 2, base.y() - target_h, target_w, target_h),
+            pixmap,
+            QRectF(pixmap.rect()),
+        )
+        return True
+
+    def _sprite_at(self, painter: QPainter, name: str, centre_x: float,
+                   bottom_y: float, world_width: float) -> bool:
+        """Draw a sprite with its bottom centre at a screen point."""
+        pixmap = self.sprites.get(name)
+        if pixmap is None:
+            return False
+        target_w = max(1.0, world_width * self.tile_w)
+        target_h = pixmap.height() * (target_w / pixmap.width())
+        painter.drawPixmap(
+            QRectF(centre_x - target_w / 2, bottom_y - target_h, target_w, target_h),
             pixmap,
             QRectF(pixmap.rect()),
         )
@@ -535,12 +550,12 @@ class OfficeScene:
         self._sprite(painter, "tree", x0 + 1.6, z0 + 8.0, 1.6)
         self._sprite(painter, "plant_palm", x1 - 2.2, z1 - 2.4, 1.4)
         self._sprite(painter, "plant_snake", x0 + 3.0, z1 - 1.6, 1.2)
-        self._sprite(painter, "artwork", x0 + 5.0, z0 + 0.3, 1.8, height=62)
+        self._sprite(painter, "artwork", x0 + 5.0, z0 + 0.3, 1.3, height=34)
 
         for px, pz in (
             (x0 + 1.4, z0 + 1.4),
             (x1 - 1.6, z1 - 1.6),
-            (x0 + 1.4, z1 - 1.6),
+            (x0 + 2.6, z1 - 0.8),
         ):
             self._draw_plant(painter, px, pz)
 
@@ -661,13 +676,28 @@ class OfficeScene:
         if pixmap is None:
             return False
         if flip:
-            pixmap = pixmap.transformed(QTransform().scale(1, -1))
+            pixmap = pixmap.transformed(QTransform().rotate(180))
         target_w = max(1.0, world_width * self.tile_w)
         scale = target_w / pixmap.width()
         target_h = pixmap.height() * scale
         base = self.to_screen(x, z, height)
         painter.drawPixmap(
             QRectF(base.x() - target_w / 2, base.y() - target_h, target_w, target_h),
+            pixmap,
+            QRectF(pixmap.rect()),
+        )
+        return True
+
+    def _sprite_at(self, painter: QPainter, name: str, centre_x: float,
+                   bottom_y: float, world_width: float) -> bool:
+        """Draw a sprite with its bottom centre at a screen point."""
+        pixmap = self.sprites.get(name)
+        if pixmap is None:
+            return False
+        target_w = max(1.0, world_width * self.tile_w)
+        target_h = pixmap.height() * (target_w / pixmap.width())
+        painter.drawPixmap(
+            QRectF(centre_x - target_w / 2, bottom_y - target_h, target_w, target_h),
             pixmap,
             QRectF(pixmap.rect()),
         )
@@ -760,12 +790,12 @@ class OfficeScene:
         self._sprite(painter, "tree", x0 + 1.6, z0 + 8.0, 1.6)
         self._sprite(painter, "plant_palm", x1 - 2.2, z1 - 2.4, 1.4)
         self._sprite(painter, "plant_snake", x0 + 3.0, z1 - 1.6, 1.2)
-        self._sprite(painter, "artwork", x0 + 5.0, z0 + 0.3, 1.8, height=62)
+        self._sprite(painter, "artwork", x0 + 5.0, z0 + 0.3, 1.3, height=34)
 
         for px, pz in (
             (x0 + 1.4, z0 + 1.4),
             (x1 - 1.6, z1 - 1.6),
-            (x0 + 1.4, z1 - 1.6),
+            (x0 + 2.6, z1 - 0.8),
         ):
             self._draw_plant(painter, px, pz)
 
@@ -1211,8 +1241,15 @@ class OfficeScene:
             self._draw_desk(painter, item.x, item.z, item.owner)
 
     def _draw_desk(self, painter: QPainter, x: float, z: float, owner: str) -> None:
-        if self._sprite(painter, "desk", x, z + 0.1, 2.6):
-            self._sprite(painter, "monitor", x, z - 0.35, 0.95)
+        if self._sprite(painter, "desk", x, z + 0.45, 2.6):
+            desk_pixmap = self.sprites.get("desk")
+            base = self.to_screen(x, z + 0.45)
+            if desk_pixmap is not None:
+                target_w = 2.6 * self.tile_w
+                target_h = desk_pixmap.height() * (target_w / desk_pixmap.width())
+                surface = base.y() - target_h * 0.48
+                self._sprite_at(painter, "monitor", base.x(), surface, 0.95)
+            self._sprite(painter, "chair", x, z + 1.25, 1.1)
             return
         self._shadow(painter, x, z + 0.2, 2.2, 1.6)
 
