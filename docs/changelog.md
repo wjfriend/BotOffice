@@ -2,6 +2,38 @@
 
 ---
 
+## 2026-11-09（第十八轮）— clone 完成 + 工具条 + cron
+
+### clone
+
+`elie222/rakazo`（Apache-2.0）与 `milind-soni/OpenMausBot`（Apache-2.0）已拉到 `refs/`。
+调研结论记在 `docs/status.md` 的「参考项目调研」小节，重点三处：
+`Bot.computerId` 可空且 `Computer.bots` 为列表（= 电脑可选、可共享）、
+沙箱是 Docker 镜像但支持 `e2b / daytona / boat` 云 provider、
+`McpServer` 的字段形状（transport/endpoint/command/args/env/headers/secret）。
+
+### 新增功能
+
+| 功能 | 后端 | GUI |
+|---|---|---|
+| 工具执行条（chips） | `GET /api/tools/recent`；`_on_tool_call` 存 30 条环形缓冲 | Chat 页 `Tools` 一行胶囊，`agent.tool_call` 到达即刷新 |
+| Routine 支持 cron | `routines.py` 新增五字段匹配器（`*`、`a-b`、`a,b`、`*/n`）+ 每分钟只触发一次 | Routine 表单多一行 Cron，支持 `;` 分隔多条 |
+
+### 如何验证
+
+| 项 | 结果 |
+|---|---|
+| `bash scripts/lint.sh` | LINT OK |
+| `backend` / `employee` / `bus` / `stream` / `hook` | 全部 ALL CHECKS PASSED |
+| `employee.test.py` 第 20 节 | cron 匹配 8 项断言 + cron 存储 |
+
+### 未验证
+
+- 没有在真实窗口里点过 chips 和 Cron 输入框。
+- cron 到点时的自动触发没有测（只测了匹配函数与存储）——间隔/定点触发走的是同一条 `due()` 路径。
+
+---
+
 ## 2026-11-09（第十七轮）— 真接 Claude Code 钩子
 
 ### 改了什么
