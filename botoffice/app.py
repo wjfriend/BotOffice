@@ -11,6 +11,7 @@ import asyncio
 import dataclasses
 import json
 import logging
+import re
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -21,6 +22,7 @@ import yaml
 from pydantic import BaseModel, Field
 
 from .agent.builtin_tools import register_browser_tools, register_tarsier_tools
+from .agent.mcp import McpRegistry, McpServer
 from .agent.runtime import AgentRuntime
 from .agent.tools import Tool, ToolRegistry
 from .bus import EventBus
@@ -43,6 +45,11 @@ from .orchestrator.tasks import Orchestrator
 log = get_logger("botoffice.app")
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def _slug(text: str) -> str:
+    """Make an arbitrary name safe to use inside a tool name."""
+    return re.sub(r"[^a-z0-9]+", "-", str(text).strip().lower()).strip("-") or "x"
 
 
 class OfficeContext:
@@ -79,6 +86,9 @@ class OfficeContext:
         self.routine_runner.start()
         self.groups = GroupStore(root / "config" / "groups.json")
         self.groups.load()
+        self.mcp = McpRegistry(root / "config" / "mcp.json")
+        self.mcp.load()
+        self._mcp_tool_names: dict[str, list[str]] = {}
         self.ingest = BusIngest(self)
         self.agent_usage: dict[str, dict] = {}
         self.agent_action: dict[str, str] = {}
@@ -148,6 +158,44 @@ class OfficeContext:
                 }
             )
             self.tool_calls = self.tool_calls[-30:]
+
+    def _unregister_mcp_tools(self, server_id: str) -> None:
+        for name in self._mcp_tool_names.pop(server_id, []):
+            self.tools.unregister(name)
+        self._team_registries.clear()
+
+    def register_mcp_tools(self, server_id: str, tools: list[dict]) -> list[str]:
+        """Expose a connected server's tools as office tools."""
+        from .agent.tools import Tool
+
+        self._unregister_mcp_tools(server_id)
+        names: list[str] = []
+        for tool in tools:
+            mcp_name = str(tool.get("name") or "")
+            if not mcp_name:
+                continue
+            name = f"mcp_{_slug(server_id)}_{_slug(mcp_name)}"
+            self.tools.register(
+                Tool(
+                    name=name,
+                    description=str(tool.get("description") or mcp_name),
+                    schema=tool.get("schema") or {},
+                    handler=self._mcp_handler(server_id, mcp_name),
+                    category="mcp",
+                    requires=server_id,
+                    metadata={"server": server_id, "mcp_tool": mcp_name},
+                )
+            )
+            names.append(name)
+        self._mcp_tool_names[server_id] = names
+        self._team_registries.clear()
+        return names
+
+    def _mcp_handler(self, server_id: str, tool_name: str):
+        async def handler(**kwargs):
+            return await self.mcp.call(server_id, tool_name, kwargs)
+
+        return handler
 
     def run_routine(self, routine) -> None:
         """Run one routine as the team lead, off the caller's thread.
@@ -301,6 +349,14 @@ class HideIn(BaseModel):
 class TeamImportIn(BaseModel):
     markdown: str
     workspace: str = ""
+
+
+class McpServerIn(BaseModel):
+    id: str
+    name: str = ""
+    command: str
+    args: list[str] = Field(default_factory=list)
+    env: dict = Field(default_factory=dict)
 
 
 class RoutineIn(BaseModel):
@@ -789,6 +845,47 @@ def create_app(context: OfficeContext | None = None) -> FastAPI:
         items = list(ctx.tool_calls)
         items.reverse()
         return {"tools": items[:limit]}
+
+    # ------------------------------------------------------------------ mcp
+
+    @app.get("/api/mcp")
+    async def list_mcp() -> dict:
+        return {"servers": ctx.mcp.list()}
+
+    @app.post("/api/mcp")
+    async def add_mcp(payload: McpServerIn) -> dict:
+        if not payload.id.strip() or not payload.command.strip():
+            raise HTTPException(status_code=400, detail="id and command are required")
+        server = McpServer(
+            id=payload.id.strip(),
+            name=payload.name.strip(),
+            command=payload.command.strip(),
+            args=[str(item) for item in payload.args],
+            env={str(k): str(v) for k, v in (payload.env or {}).items()},
+        )
+        ctx.mcp.add(server)
+        ctx.bus.publish("mcp.added", id=server.id)
+        return server.as_dict()
+
+    @app.delete("/api/mcp/{server_id}")
+    async def remove_mcp(server_id: str) -> dict:
+        ctx._unregister_mcp_tools(server_id)
+        if not ctx.mcp.remove(server_id):
+            raise HTTPException(status_code=404, detail="unknown MCP server")
+        return {"ok": True}
+
+    @app.post("/api/mcp/{server_id}/connect")
+    async def connect_mcp(server_id: str) -> dict:
+        """Start the server and register its tools for every team."""
+        try:
+            tools = await ctx.mcp.connect(
+                server_id, working_dir=ctx.root / "workspace"
+            )
+        except Exception as exc:  # noqa: BLE001 - report, do not crash the app
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        names = ctx.register_mcp_tools(server_id, tools)
+        ctx.bus.publish("mcp.connected", id=server_id, tools=len(names))
+        return {"server": server_id, "tools": tools, "registered": names}
 
     @app.get("/api/inbox")
     async def list_inbox(unread_only: bool = False) -> dict:
