@@ -2,6 +2,46 @@
 
 ---
 
+## 2026-11-09（第十六轮）— 参考项目的前两批功能
+
+参考 `elie222/rakazo`（7.6k star）与 `milind-soni/OpenMausBot`（19k star）的功能清单，
+它们都是 TypeScript 网页/Electron 应用且没有虚拟办公室，因此不 fork，只移植功能。
+
+### 第一批（小）
+
+| 功能 | 后端 | GUI |
+|---|---|---|
+| 模型选择器 | `POST /api/roles/{id}/model` | Chat 页头部的平台下拉框 |
+| 密钥写入 | `POST /api/providers/{id}/key`；`redacted()` 只回 `api_key_set` | 平台页 `Set key` 按钮（密码输入） |
+| 复制 / 隐藏员工 | `POST /api/roles/{id}/duplicate`、`/hide`；`Role.hidden` | Chat 页 `Duplicate` / `Hide` |
+| 团队导入导出 | `GET /api/teams/{id}/export`、`POST /api/teams/import` | 团队页 `Export` / `Import`（文件对话框） |
+
+### 第二批（中）
+
+| 功能 | 后端 | GUI |
+|---|---|---|
+| Routines 定时任务 | `orchestrator/routines.py`：JSON 存储 + 后台线程 + 到期判断 | Routines 页签（添加/立即运行/删除） |
+| 群聊 | `orchestrator/groups.py`；`POST /api/groups/{id}/message` 逐个跑完所有成员 | Chat 页的群组选择器 + New group |
+| 流式回复 | `LLMClient.chat(on_delta=...)` 走 OpenAI 协议 SSE，失败自动回退普通请求 | 气泡按 `agent.stream` 逐字变长 |
+
+### 如何验证
+
+| 项 | 结果 |
+|---|---|
+| `bash scripts/lint.sh` | LINT OK |
+| `scripts/verify/backend.test.py` | ALL CHECKS PASSED |
+| `scripts/verify/employee.test.py` | ALL CHECKS PASSED（19 节） |
+| `scripts/verify/bus.test.py` | ALL CHECKS PASSED |
+| `scripts/verify/stream.test.py` | ALL CHECKS PASSED（本地 SSE 服务） |
+| 演示脚本 | exit=0 |
+
+### 未验证
+
+- 没有在真实 Claude Code / 真实 LLM 平台上端到端跑过（流式只用本地 SSE 假服务验证）。
+- 没有在真实窗口里手动点过这些新控件。
+
+---
+
 ## 2026-11-09（第十五轮）— 员工实时日志
 
 ### 改了什么
