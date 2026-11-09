@@ -89,6 +89,33 @@
 
 ---
 
+## 参考项目调研（2026-11-09 clone 完成）
+
+| 仓库 | 许可 | 结构 | 与我们的关系 |
+|---|---|---|---|
+| `elie222/rakazo`（7.6k star） | Apache-2.0 | monorepo：`apps/{api,web,desktop,mobile,worker}` + Prisma | 有沙箱与 MCP，**没有虚拟办公室** |
+| `milind-soni/OpenMausBot`（19k star） | Apache-2.0 | monorepo + connector/cloudflare | 有决策模型与团队包，**没有虚拟办公室** |
+
+**可直接借鉴的三处设计**：
+
+1. **电脑是可选且可共享的**（对应我们的第 8 项）
+   `Bot.computerId` 可空；`Computer.bots` 是列表——**一个电脑挂多个 bot，一个 bot 也能不挂电脑**，
+   与你确认的「默认不分配、可共享、可独占」完全一致。
+   另有 `controlLease*` / `executionLease*`：同一时刻只有一个 bot 能**控制**一台电脑，但多个都能**执行**。
+2. **沙箱怎么落地**：`infra/sandboxes/computer/` 是 **Docker 镜像**（Linux 桌面 fluxbox + `embed.html` 远程画面 + `control.py`）。
+   README 说沙箱 provider 可选 `boat / e2b / daytona / createos`——**即支持云端，不强制本地 Docker**。
+   在 Windows 上若走本地 Docker 会引入 Docker Desktop 依赖（与 `CLAUDE.md` 约束 18「不用 WSL2-only」相关），所以**优先接云 provider**。
+3. **MCP 的数据形状**（对应我们的第 9 项）
+   `McpServer{ transport, endpoint, command, args, env, files, headers, secretId }`——
+   覆盖 stdio 与 http/sse 两种接入方式，密钥走单独的 secret 表。
+
+**Routines 比我们强的地方**：`crons: String[]`（多条 cron）、`messageProvider`（邮件触发）、
+`watch/watchState`（文件变化触发）。我们目前只有「每 N 分钟」和「每天 HH:MM」。
+
+> 只读参考，不 fork、不进依赖链（`CLAUDE.md` §9）。
+
+---
+
 ## 功能差距（对照 munder-difflin）
 
 > 参考对象：`HarnessMD/munder-difflin`（可视化 agent harness，Electron + Pixi.js）。
