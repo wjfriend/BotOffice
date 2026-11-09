@@ -33,6 +33,7 @@ STRINGS: dict[str, str] = {
     "chat.placeholder": "Type a message...",
     "chat.send": "Send",
     "chat.you": "You",
+    "chat.log": "Live log",
     # Teams.
     "teams.hint": (
         "Each team works in its own folder. File tools can only touch that folder, "

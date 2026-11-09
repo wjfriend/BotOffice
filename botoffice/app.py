@@ -72,9 +72,14 @@ class OfficeContext:
         self.ingest = BusIngest(self)
         self.agent_usage: dict[str, dict] = {}
         self.agent_action: dict[str, str] = {}
+        self.agent_log: dict[str, list[dict]] = {}
         self.bus.subscribe("agent.usage", self._on_usage)
         self.bus.subscribe("agent.say", self._on_say)
         self.bus.subscribe("agent.tool_call", self._on_tool_call)
+        self.bus.subscribe("agent.say", self._on_log)
+        self.bus.subscribe("agent.tool_call", self._on_log)
+        self.bus.subscribe("agent.state", self._on_log)
+        self.bus.subscribe("bus.event", self._on_log)
 
         self.orchestrator = Orchestrator(
             self.roles, self.offices, self.runtime, self.memory, self.bus
@@ -94,6 +99,29 @@ class OfficeContext:
         text = str(event.get("text", "")).strip()
         if text:
             self.agent_action[event.get("id", "")] = text[:80]
+
+    def _on_log(self, event: dict) -> None:
+        """Keep a short per-agent event log for the detail panel."""
+        agent_id = event.get("id", "")
+        if not agent_id:
+            return
+        kind = event.get("type", "")
+        if kind == "agent.say":
+            text = event.get("text", "")
+        elif kind == "agent.tool_call":
+            text = f"tool: {event.get('tool', '')}"
+        elif kind == "agent.state":
+            text = f"state: {event.get('state', '')}"
+        else:
+            text = " ".join(
+                str(event.get(key, ""))
+                for key in ("event", "tool", "message")
+                if event.get(key)
+            )
+        self.agent_log.setdefault(agent_id, []).append(
+            {"ts": event.get("ts"), "type": kind, "text": text}
+        )
+        self.agent_log[agent_id] = self.agent_log[agent_id][-200:]
 
     def _on_tool_call(self, event: dict) -> None:
         tool = event.get("tool", "")
@@ -419,6 +447,10 @@ def create_app(context: OfficeContext | None = None) -> FastAPI:
         )
         ctx.hire(role)
         return role.as_dict()
+
+    @app.get("/api/agents/{agent_id}/log")
+    async def agent_log(agent_id: str, limit: int = 100) -> dict:
+        return {"log": ctx.agent_log.get(agent_id, [])[-limit:]}
 
     @app.get("/api/inbox")
     async def list_inbox(unread_only: bool = False) -> dict:

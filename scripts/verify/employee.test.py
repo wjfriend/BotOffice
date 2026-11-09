@@ -190,6 +190,11 @@ def main() -> int:
     after = client.get("/api/inbox").json()
     check("marking all read clears the count", after.get("unread") == 0, str(after.get("unread")))
 
+    print("=== 13. each employee has a live log ===")
+    log = client.get("/api/agents/worker/log").json().get("log", [])
+    check("the worker has log entries", len(log) >= 1, str(len(log)))
+    check("entries carry text", all("text" in entry for entry in log))
+
     if FAILURES:
         print(f"\n{len(FAILURES)} CHECK(S) FAILED")
         return 1

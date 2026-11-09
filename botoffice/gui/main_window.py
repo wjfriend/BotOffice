@@ -493,6 +493,17 @@ class MainWindow(QMainWindow):
         )
         chat_layout.addWidget(self.chat_view, 1)
 
+        log_title = QLabel(t("chat.log"))
+        log_title.setStyleSheet("color:#e6ebf5;font-size:12px;font-weight:600;")
+        chat_layout.addWidget(log_title)
+        self.agent_log_view = QTextEdit()
+        self.agent_log_view.setReadOnly(True)
+        self.agent_log_view.setMaximumHeight(150)
+        self.agent_log_view.setStyleSheet(
+            "background:#0f141d;border:1px solid #2e3950;color:#8fa0b8;font-size:11px;"
+        )
+        chat_layout.addWidget(self.agent_log_view)
+
         row = QHBoxLayout()
         row.setSpacing(6)
         self.chat_input = QLineEdit()
@@ -760,6 +771,22 @@ class MainWindow(QMainWindow):
         self.chat_header.setText(t("chat.with", name=self._tag_for(role_id)))
         self.tabs.setCurrentIndex(self.TAB_CHAT)
         self.chat_input.setFocus()
+        self.refresh_agent_log(role_id)
+
+    def refresh_agent_log(self, role_id: str) -> None:
+        self.office.get(f"/api/agents/{role_id}/log?limit=80", self.on_agent_log)
+
+    def on_agent_log(self, data: Any) -> None:
+        if not isinstance(data, dict):
+            return
+        rows = []
+        for entry in data.get("log", []):
+            stamp = time.strftime("%H:%M:%S", time.localtime(entry.get("ts") or 0))
+            rows.append(
+                f"<span style='color:#5c6a82'>{stamp}</span> "
+                f"<span style='color:#c7d0de'>{html_lib.escape(str(entry.get('text', '')))}</span>"
+            )
+        self.agent_log_view.setHtml("<br>".join(rows) or "<span style='color:#5c6a82'>—</span>")
 
     def _tag_for(self, role_id: str) -> str:
         for role in self.roles:

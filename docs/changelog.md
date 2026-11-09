@@ -2,6 +2,35 @@
 
 ---
 
+## 2026-11-09（第十五轮）— 员工实时日志
+
+### 改了什么
+
+| 文件 | 变更 |
+|---|---|
+| `botoffice/app.py` | 新增每员工事件环形日志（`agent.say` / `agent.tool_call` / `agent.state` / `bus.event`），新增 `GET /api/agents/{id}/log` |
+| `botoffice/gui/main_window.py` / `i18n.py` | Chat 页签下方新增 **Live log** 面板：点员工即加载他最近的事件 |
+| `scripts/verify/employee.test.py` | 新增：员工日志有内容且带文本 |
+
+### 为什么改
+
+用户要求补 munder-difflin 的「点员工看终端」。真正的 PTY 终端需要自己启动 CLI 并抓 stdout（node-pty 那种），
+这一轮先做**实用版**：实时事件日志。
+
+### 如何验证
+
+| 项 | 结果 |
+|---|---|
+| `bash scripts/lint.sh` | LINT OK |
+| `scripts/verify/employee.test.py` | ALL CHECKS PASSED（含日志） |
+| `scripts/verify/backend.test.py` / `bus.test.py` | ALL CHECKS PASSED |
+
+### 未验证 / 未做
+
+- 真正的 PTY 终端（启动 CLI、转发输入输出）尚未实现。
+
+---
+
 ## 2026-11-09（第十四轮）— 收件箱
 
 ### 改了什么
