@@ -33,6 +33,7 @@ from .memory import MemoryStore
 from .orchestrator.approvals import ApprovalQueue
 from .orchestrator.board import TaskBoard
 from .orchestrator.inbox import Inbox
+from .orchestrator.routines import RoutineRunner, RoutineStore
 from .orchestrator.office import OfficeManager
 from .orchestrator.roles import Role, RoleRegistry, RoleScope
 from .orchestrator.teams import TeamRegistry
@@ -71,6 +72,10 @@ class OfficeContext:
         self.board = TaskBoard(self.bus)
         self.approvals = ApprovalQueue(self.bus)
         self.inbox = Inbox(self.bus)
+        self.routines = RoutineStore(root / "config" / "routines.json")
+        self.routines.load()
+        self.routine_runner = RoutineRunner(self.routines, self.run_routine)
+        self.routine_runner.start()
         self.ingest = BusIngest(self)
         self.agent_usage: dict[str, dict] = {}
         self.agent_action: dict[str, str] = {}
@@ -129,6 +134,28 @@ class OfficeContext:
         tool = event.get("tool", "")
         if tool:
             self.agent_action[event.get("id", "")] = f"using {tool}"[:80]
+
+    def run_routine(self, routine) -> None:
+        """Run one routine as the team lead, off the caller's thread.
+
+        A routine is a prompt on a schedule, so it needs the same loop an
+        ordinary instruction uses. If the office has nobody to run it, the
+        routine is skipped rather than failing loudly.
+        """
+        role = next(
+            (item for item in self.roles.list()
+             if item.kind != "user" and item.rank in ("lead", "manager")),
+            None,
+        ) or next(
+            (item for item in self.roles.list() if item.kind != "user"),
+            None,
+        )
+        if role is None:
+            return
+        self.bus.publish("routine.started", id=routine.id, name=routine.name, by=role.id)
+        asyncio.run(
+            self.runtime.run(role, routine.prompt, context_blocks=[])
+        )
 
     def hire(self, role: Role) -> Role:
         """Add one employee and give it a desk.
@@ -260,6 +287,14 @@ class HideIn(BaseModel):
 class TeamImportIn(BaseModel):
     markdown: str
     workspace: str = ""
+
+
+class RoutineIn(BaseModel):
+    name: str
+    prompt: str
+    every_minutes: int = 0
+    at_hour: int = -1
+    at_minute: int = 0
 
 
 class ApprovalIn(BaseModel):
@@ -621,6 +656,41 @@ def create_app(context: OfficeContext | None = None) -> FastAPI:
             created.append(role.id)
         ctx.bus.publish("team.imported", team=team_id, employees=len(created))
         return {"team": team_id, "created": created}
+
+    # -------------------------------------------------------------- routines
+
+    @app.get("/api/routines")
+    async def list_routines() -> dict:
+        return {"routines": ctx.routines.list()}
+
+    @app.post("/api/routines")
+    async def add_routine(payload: RoutineIn) -> dict:
+        if not payload.name.strip() or not payload.prompt.strip():
+            raise HTTPException(status_code=400, detail="name and prompt are required")
+        routine = ctx.routines.add(
+            payload.name.strip(),
+            payload.prompt.strip(),
+            payload.every_minutes,
+            payload.at_hour,
+            payload.at_minute,
+        )
+        ctx.bus.publish("routine.added", id=routine.id, name=routine.name)
+        return routine.as_dict()
+
+    @app.delete("/api/routines/{routine_id}")
+    async def delete_routine(routine_id: str) -> dict:
+        if not ctx.routines.remove(routine_id):
+            raise HTTPException(status_code=404, detail="unknown routine")
+        return {"ok": True}
+
+    @app.post("/api/routines/{routine_id}/run")
+    async def run_routine_now(routine_id: str) -> dict:
+        try:
+            routine = ctx.routines.get(routine_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        asyncio.create_task(asyncio.to_thread(ctx.run_routine, routine))
+        return {"ok": True, "routine": routine.id}
 
     @app.get("/api/inbox")
     async def list_inbox(unread_only: bool = False) -> dict:

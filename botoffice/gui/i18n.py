@@ -22,6 +22,7 @@ STRINGS: dict[str, str] = {
     "tab.tasks": "Tasks",
     "tab.approvals": "Approvals",
     "tab.inbox": "Inbox",
+    "tab.routines": "Routines",
     "tab.platforms": "Platforms",
     "tab.teams": "Teams",
     "tab.chat": "Chat",
@@ -159,6 +160,14 @@ STRINGS: dict[str, str] = {
     "approvals.reject": "Reject",
     "inbox.empty": "No messages yet.",
     "inbox.mark_read": "Mark all read",
+    "routines.empty": "No routines yet. Add one to run work on a schedule.",
+    "routines.name": "Name",
+    "routines.prompt": "What to run",
+    "routines.every": "Every (minutes)",
+    "routines.add": "Add",
+    "routines.delete": "Delete",
+    "routines.run": "Run now",
+    "routines.disabled": "disabled",
     "cost.calls": "calls {calls} | in {tokens_in} | out {tokens_out} | {cost} {currency}",
 }
 

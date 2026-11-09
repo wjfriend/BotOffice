@@ -233,6 +233,21 @@ def main() -> int:
     check("import recreates the team", len(imported.get("created", [])) >= 1,
           str(imported.get("created")))
 
+    print("=== 18. routines can be created, listed and removed ===")
+    created = client.post(
+        "/api/routines",
+        json={"name": "Daily report", "prompt": "Summarise yesterday.",
+              "every_minutes": 60},
+    ).json()
+    check("routine created", bool(created.get("id")), str(created.get("id")))
+    listed = client.get("/api/routines").json()["routines"]
+    check("routine listed", len(listed) == 1, str(len(listed)))
+    started = client.post(f"/api/routines/{created['id']}/run").json()
+    check("run accepted", started.get("ok") is True, str(started))
+    client.delete(f"/api/routines/{created['id']}")
+    after = client.get("/api/routines").json()["routines"]
+    check("routine removed", len(after) == 0, str(len(after)))
+
     if FAILURES:
         print(f"\n{len(FAILURES)} CHECK(S) FAILED")
         return 1

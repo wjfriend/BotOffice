@@ -312,11 +312,12 @@ class MainWindow(QMainWindow):
     TAB_TASKS = 1
     TAB_APPROVALS = 2
     TAB_INBOX = 3
-    TAB_PLATFORMS = 4
-    TAB_TEAMS = 5
-    TAB_CHAT = 6
-    TAB_MEMORY = 7
-    TAB_COST = 8
+    TAB_ROUTINES = 4
+    TAB_PLATFORMS = 5
+    TAB_TEAMS = 6
+    TAB_CHAT = 7
+    TAB_MEMORY = 8
+    TAB_COST = 9
 
     def __init__(self, office) -> None:
         super().__init__()
@@ -663,6 +664,48 @@ class MainWindow(QMainWindow):
         self.btn_mark_read.clicked.connect(self.mark_inbox_read)
         inbox_layout.addWidget(self.btn_mark_read)
         self.tabs.addTab(inbox_page, t("tab.inbox"))
+
+        # Routines page: work that runs on a schedule.
+        routines_page = QWidget()
+        routines_layout = QVBoxLayout(routines_page)
+        routines_layout.setContentsMargins(8, 8, 8, 8)
+        routines_layout.setSpacing(6)
+
+        self.routines_list = QListWidget()
+        self.routines_list.setStyleSheet(
+            "background:#151a26;border:none;color:#e6ebf5;font-size:12px;"
+        )
+        routines_layout.addWidget(self.routines_list, 1)
+
+        self.routine_name = QLineEdit()
+        self.routine_name.setPlaceholderText(t("routines.name"))
+        self.routine_prompt = QLineEdit()
+        self.routine_prompt.setPlaceholderText(t("routines.prompt"))
+        self.routine_every = QLineEdit("60")
+        self.routine_every.setPlaceholderText(t("routines.every"))
+        for field_edit in (self.routine_name, self.routine_prompt, self.routine_every):
+            field_edit.setStyleSheet(
+                "background:#151a26;border:1px solid #2e3950;border-radius:8px;"
+                "color:#e6ebf5;padding:6px 8px;font-size:12px;"
+            )
+            routines_layout.addWidget(field_edit)
+
+        routine_actions = QHBoxLayout()
+        routine_actions.setSpacing(6)
+        self.btn_routine_add = QPushButton(t("routines.add"))
+        self.btn_routine_add.clicked.connect(self.on_add_routine)
+        self.btn_routine_run = QPushButton(t("routines.run"))
+        self.btn_routine_run.clicked.connect(self.on_run_routine)
+        self.btn_routine_delete = QPushButton(t("routines.delete"))
+        self.btn_routine_delete.clicked.connect(self.on_delete_routine)
+        for button in (self.btn_routine_add, self.btn_routine_run, self.btn_routine_delete):
+            button.setStyleSheet(
+                "background:#222a3d;color:#e6ebf5;border:1px solid #2e3950;"
+                "border-radius:8px;padding:6px 12px;font-size:12px;"
+            )
+            routine_actions.addWidget(button)
+        routines_layout.addLayout(routine_actions)
+        self.tabs.addTab(routines_page, t("tab.routines"))
         platforms_page = QWidget()
         platforms_layout = QVBoxLayout(platforms_page)
         platforms_layout.setContentsMargins(8, 8, 8, 8)
@@ -1030,6 +1073,7 @@ class MainWindow(QMainWindow):
         self.refresh_teams()
         self.refresh_approvals()
         self.refresh_inbox()
+        self.refresh_routines()
 
     def _fill_providers(self) -> None:
         self.providers_list.clear()
@@ -1234,6 +1278,63 @@ class MainWindow(QMainWindow):
 
     def mark_inbox_read(self) -> None:
         self.office.post("/api/inbox/read", {}, lambda _result: self.refresh_inbox())
+
+    # ------------------------------------------------------------ routines
+
+    def refresh_routines(self) -> None:
+        self.office.get("/api/routines", self.on_routines)
+
+    def on_routines(self, data: Any) -> None:
+        if not isinstance(data, dict):
+            return
+        self.routines_list.clear()
+        for routine in data.get("routines", []):
+            schedule = (
+                f"every {routine.get('every_minutes')} min"
+                if routine.get("every_minutes")
+                else (f"at {routine.get('at_hour'):02d}:{routine.get('at_minute'):02d}"
+                      if routine.get("at_hour", -1) >= 0 else t("routines.disabled"))
+            )
+            item = QListWidgetItem(
+                f"{routine.get('name')}  ·  {schedule}  ·  ran {routine.get('run_count', 0)}x"
+            )
+            item.setData(Qt.UserRole, routine.get("id"))
+            self.routines_list.addItem(item)
+
+    def on_add_routine(self) -> None:
+        name = self.routine_name.text().strip()
+        prompt = self.routine_prompt.text().strip()
+        every = self.routine_every.text().strip() or "60"
+        if not name or not prompt:
+            QMessageBox.warning(self, "BotOffice", t("routines.empty"))
+            return
+        self.office.post(
+            "/api/routines",
+            {"name": name, "prompt": prompt, "every_minutes": int(every)},
+            lambda _result: self.refresh_routines(),
+        )
+
+    def on_run_routine(self) -> None:
+        item = self.routines_list.currentItem()
+        if item is None:
+            return
+        routine_id = item.data(Qt.UserRole)
+        if not routine_id:
+            return
+        self.office.post(
+            f"/api/routines/{routine_id}/run", {}, lambda _result: self.refresh_routines()
+        )
+
+    def on_delete_routine(self) -> None:
+        item = self.routines_list.currentItem()
+        if item is None:
+            return
+        routine_id = item.data(Qt.UserRole)
+        if not routine_id:
+            return
+        self.office.delete(
+            f"/api/routines/{routine_id}", lambda _result: self.refresh_routines()
+        )
 
     # ----------------------------------------------------------- approvals
 
