@@ -11,7 +11,7 @@
 | **M1 后端跑通** | 多平台 LLM、角色体系、四层记忆与压缩、四种交互 | ✅ 已完成 |
 | **M2 2.5D 可视化** | PySide6 原生窗口、等距场景、小人走位、拖拽开聊 | ✅ 已完成 |
 | **M3 办公室化** | 新建对话→Lead、看板、动画、材料库、职级权限 | 🚧 进行中 |
-| **M4 外部 Agent 接入** | Agent Bus 钩子、Claude Code / Codex / OpenCode / Gemini CLI | 🚧 事件入口与钩子脚本已完成，未接入真实 CLI 配置 |
+| **M4 外部 Agent 接入** | Agent Bus 钩子、Claude Code / Codex / OpenCode / Gemini CLI | ✅ 钩子已装入 Claude Code 配置，端到端验证通过 |
 | **M5 美化 + 打包** | 场景细节、日夜光照、PyInstaller 打包 | ⏳ 待开始 |
 | **M6 3D 升级** | three.js、大连本地外景、桌面背景轮换 | ⏳ 待开始 |
 

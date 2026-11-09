@@ -2,6 +2,39 @@
 
 ---
 
+## 2026-11-09（第十七轮）— 真接 Claude Code 钩子
+
+### 改了什么
+
+| 文件 | 变更 |
+|---|---|
+| `scripts/install_claude_hooks.py` | **新增**：把钩子写进 `~/.claude/settings.json`。先备份、只做增量、二次执行无副作用、写临时文件校验后再替换 |
+| `scripts/verify/hook.test.py` | **新增**：端到端——真起服务（临时端口 3901）、真跑钩子脚本、查 API |
+| 本机 `~/.claude/settings.json` | 已写入 `PostToolUse` / `Stop` / `SessionStart` 三条钩子；原 `PreToolUse`（`rtk hook claude`）完整保留；备份在 `settings.json.bak-13676` |
+
+### 为什么改
+
+用户确认按实际优先级做，而「跑不起来的功能不算功能」。这是让办公室真正跟着 Claude Code 动起来的最后一步。
+
+### 如何验证
+
+| 项 | 结果 |
+|---|---|
+| `bash scripts/lint.sh` | LINT OK |
+| `scripts/verify/hook.test.py` | ALL CHECKS PASSED |
+| ├ 钩子退出码 / 不写 stdout | 0 / 空 |
+| ├ 注册外部员工 | `claude-code-abc123`，`kind=external` |
+| ├ 权限请求 → 审批 | 待办 1 条 |
+| └ Stop 后员工仍在办公室 | 名册 1 人 |
+| `backend` / `employee` / `bus` / `stream` | ALL CHECKS PASSED |
+
+### 未验证
+
+- **还没在你真实打开的 Claude Code 会话里跑过**——测试用的是脚本模拟的钩子载荷。
+- 若本机 `~/.claude/settings.json` 是热加载的，需重启 Claude Code 才生效（我没有验证过它的加载时机）。
+
+---
+
 ## 2026-11-09（第十六轮）— 参考项目的前两批功能
 
 参考 `elie222/rakazo`（7.6k star）与 `milind-soni/OpenMausBot`（19k star）的功能清单，
