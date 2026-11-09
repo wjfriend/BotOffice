@@ -51,23 +51,53 @@ class LLMClient:
         *,
         max_tokens: int | None = None,
         temperature: float | None = None,
+        on_delta=None,
     ) -> str:
-        """Send a chat request and return the assistant text."""
+        """Send a chat request and return the assistant text.
+
+        When ``on_delta`` is given and the protocol is ``openai``, the reply
+        is streamed and the callback receives the accumulated text after each
+        chunk. Any failure there falls back to a plain request, so a gateway
+        that does not stream still works.
+        """
+        text = ""
+        input_tokens = 0
+        output_tokens = 0
+
         if provider.protocol == PROTOCOL_OPENAI:
-            payload, parse = self._build_openai(provider, system_prompt, messages, max_tokens, temperature)
-            data = await self._post(provider, payload)
+            payload, parse = self._build_openai(
+                provider, system_prompt, messages, max_tokens, temperature
+            )
+            if on_delta is not None:
+                try:
+                    text, input_tokens, output_tokens = await self._post_openai_stream(
+                        provider, payload, messages, on_delta
+                    )
+                except LLMError:
+                    text = ""
+            if not text:
+                data = await self._post(provider, payload)
+                text, input_tokens, output_tokens = parse(data)
         elif provider.protocol == PROTOCOL_ANTHROPIC:
-            payload, parse = self._build_anthropic(provider, system_prompt, messages, max_tokens, temperature)
+            payload, parse = self._build_anthropic(
+                provider, system_prompt, messages, max_tokens, temperature
+            )
             data = await self._post(provider, payload)
+            text, input_tokens, output_tokens = parse(data)
         elif provider.protocol == PROTOCOL_OLLAMA:
-            payload, parse = self._build_ollama(provider, system_prompt, messages, max_tokens, temperature)
+            payload, parse = self._build_ollama(
+                provider, system_prompt, messages, max_tokens, temperature
+            )
             data = await self._post(provider, payload)
+            text, input_tokens, output_tokens = parse(data)
         elif provider.protocol == PROTOCOL_MOCK:
             payload, parse = self._build_mock(provider, system_prompt, messages)
-            data = payload
+            text, input_tokens, output_tokens = parse(payload)
         else:
-            raise LLMError(f"provider {provider.id}: unsupported protocol {provider.protocol!r}")
-        text, input_tokens, output_tokens = parse(data)
+            raise LLMError(
+                f"provider {provider.id}: unsupported protocol {provider.protocol!r}"
+            )
+
         self.registry.record_usage(
             UsageRecord(
                 provider_id=provider.id,
@@ -79,6 +109,62 @@ class LLMClient:
             )
         )
         return text
+
+    async def _post_openai_stream(
+        self, provider: Provider, payload: dict, messages: list[dict], on_delta
+    ) -> tuple[str, int, int]:
+        """Stream an OpenAI-compatible reply and report it as it arrives."""
+        url = self._url(provider)
+        headers = self._headers(provider)
+        body = dict(payload)
+        body["stream"] = True
+
+        chunks: list[str] = []
+        input_tokens = 0
+        output_tokens = 0
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                async with client.stream("POST", url, headers=headers, json=body) as response:
+                    if response.status_code != 200:
+                        raise LLMError(
+                            f"provider {provider.id}: HTTP {response.status_code}"
+                        )
+                    async for line in response.aiter_lines():
+                        if not line.startswith("data:"):
+                            continue
+                        raw = line[5:].strip()
+                        if not raw or raw == "[DONE]":
+                            continue
+                        try:
+                            data = json.loads(raw)
+                        except json.JSONDecodeError:
+                            continue
+                        usage = data.get("usage") or {}
+                        if usage:
+                            input_tokens = int(usage.get("prompt_tokens") or 0)
+                            output_tokens = int(usage.get("completion_tokens") or 0)
+                        choices = data.get("choices") or []
+                        if not choices:
+                            continue
+                        piece = (choices[0].get("delta") or {}).get("content")
+                        if isinstance(piece, list):
+                            piece = "".join(
+                                part.get("text", "")
+                                for part in piece
+                                if isinstance(part, dict)
+                            )
+                        if piece:
+                            chunks.append(str(piece))
+                            on_delta("".join(chunks))
+        except (httpx.HTTPError, httpx.HTTPStatusError) as exc:
+            raise LLMError(f"provider {provider.id}: stream failed: {exc!r}") from exc
+
+        text = "".join(chunks)
+        if not input_tokens:
+            input_tokens = sum(len(str(m.get("content", ""))) // 4 + 1 for m in messages) + 40
+        if not output_tokens:
+            output_tokens = max(1, len(text) // 4)
+        return text, input_tokens, output_tokens
 
     # ---------------------------------------------------------------- build
 

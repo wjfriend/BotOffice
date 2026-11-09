@@ -57,6 +57,7 @@ class ModelRouter:
         messages: list[dict],
         *,
         model_hint: str | None = None,
+        on_delta=None,
     ) -> tuple[str, str]:
         """Call the primary provider, falling back on failure.
 
@@ -79,7 +80,9 @@ class ModelRouter:
                 last_error = exc
                 continue
             try:
-                text = await self.client.chat(provider, system_prompt, messages)
+                text = await self.client.chat(
+                    provider, system_prompt, messages, on_delta=on_delta
+                )
                 return text, provider.id
             except LLMError as exc:
                 last_error = exc

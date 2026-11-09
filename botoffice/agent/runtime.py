@@ -196,7 +196,10 @@ class AgentRuntime:
             )
             try:
                 raw, provider_id = await self.router.chat(
-                    binding, system_prompt, messages
+                    binding, system_prompt, messages,
+                    on_delta=lambda partial: self.bus.publish(
+                        "agent.stream", id=role.id, text=partial
+                    ),
                 )
             except Exception as exc:  # noqa: BLE001 - report and stop the loop
                 self.bus.publish("agent.error", id=role.id, error=str(exc))

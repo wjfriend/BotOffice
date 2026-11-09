@@ -168,6 +168,11 @@ def main() -> int:
             avatar = scene.avatars[agent_id]
             avatar.bubble = event.get("text", "")[:40]
             avatar.bubble_until = time.time() + 6
+        elif event_type == "agent.stream" and agent_id in scene.avatars:
+            # The reply grows as it streams in, so it reads as speech.
+            avatar = scene.avatars[agent_id]
+            avatar.bubble = event.get("text", "")[:60]
+            avatar.bubble_until = time.time() + 6
         elif event_type == "agent.state" and agent_id in scene.avatars:
             scene.avatars[agent_id].state = event.get("state", "idle")
             window.refresh_staff()
