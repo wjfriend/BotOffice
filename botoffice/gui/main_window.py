@@ -331,6 +331,7 @@ class MainWindow(QMainWindow):
         self.activity_lines: list[tuple[str, str]] = []
         self.selected_agent: str | None = None
         self.current_team: str | None = None
+        self.selected_group: str = ""
 
         self._build_ui()
         self.refresh_all()
@@ -515,6 +516,26 @@ class MainWindow(QMainWindow):
             chat_actions.addWidget(button)
         chat_actions.addStretch(1)
         chat_layout.addLayout(chat_actions)
+
+        # Group chat: several agents answer the same message in turn.
+        chat_group_row = QHBoxLayout()
+        chat_group_row.setSpacing(6)
+        self.group_box = QComboBox()
+        self.group_box.setStyleSheet(
+            "background:#151a26;border:1px solid #2e3950;border-radius:8px;"
+            "color:#e6ebf5;padding:4px 8px;font-size:12px;"
+        )
+        self.group_box.addItem(t("chat.group_none"), "")
+        self.group_box.currentIndexChanged.connect(self.on_group_selected)
+        chat_group_row.addWidget(self.group_box, 1)
+        self.btn_new_group = QPushButton(t("chat.group_new"))
+        self.btn_new_group.setStyleSheet(
+            "background:#222a3d;color:#e6ebf5;border:1px solid #2e3950;"
+            "border-radius:8px;padding:5px 10px;font-size:12px;"
+        )
+        self.btn_new_group.clicked.connect(self.on_new_group)
+        chat_group_row.addWidget(self.btn_new_group)
+        chat_layout.addLayout(chat_group_row)
 
         self.chat_view = QTextEdit()
         self.chat_view.setReadOnly(True)
@@ -910,6 +931,48 @@ class MainWindow(QMainWindow):
                 return bool(role.get("hidden"))
         return False
 
+    # --------------------------------------------------------- group chat
+
+    def refresh_groups(self) -> None:
+        self.office.get("/api/groups", self.on_groups)
+
+    def on_groups(self, data: Any) -> None:
+        if not isinstance(data, dict):
+            return
+        current = self.group_box.currentData()
+        self.group_box.blockSignals(True)
+        self.group_box.clear()
+        self.group_box.addItem(t("chat.group_none"), "")
+        for group in data.get("groups", []):
+            self.group_box.addItem(group.get("name") or group.get("id"), group.get("id"))
+        index = self.group_box.findData(current)
+        if index >= 0:
+            self.group_box.setCurrentIndex(index)
+        self.group_box.blockSignals(False)
+
+    def on_group_selected(self, index: int) -> None:
+        self.selected_group = self.group_box.currentData() or ""
+
+    def on_new_group(self) -> None:
+        name, ok = QInputDialog.getText(self, t("chat.group_new"), t("chat.group_name"))
+        if not ok or not name.strip():
+            return
+        members, ok = QInputDialog.getText(
+            self, t("chat.group_new"), t("chat.group_members")
+        )
+        if not ok or not members.strip():
+            return
+        participant_ids = [
+            item.strip()
+            for item in members.replace(";", ",").split(",")
+            if item.strip()
+        ]
+        self.office.post(
+            "/api/groups",
+            {"name": name.strip(), "participant_ids": participant_ids},
+            lambda _result: self.refresh_groups(),
+        )
+
     def on_set_key(self) -> None:
         provider = self.providers_list.currentItem()
         if provider is None:
@@ -998,16 +1061,35 @@ class MainWindow(QMainWindow):
         text = self.chat_input.text().strip()
         if not text:
             return
-        if not self.selected_agent:
+        if not self.selected_agent and not self.selected_group:
             self.append_chat(t("msg.system"), t("chat.no_target"))
             return
         self.chat_input.clear()
         self.append_chat(t("chat.you"), text)
+        if self.selected_group:
+            self.office.post(
+                f"/api/groups/{self.selected_group}/message",
+                {"text": text, "speaker": t("chat.you")},
+                self.on_group_replies,
+            )
+            return
         self.office.post(
             f"/api/agents/{self.selected_agent}/say",
             {"text": text},
             self.on_agent_reply,
         )
+
+    def on_group_replies(self, result: Any) -> None:
+        if not isinstance(result, dict):
+            return
+        if result.get("error"):
+            self.append_chat(t("msg.system"), result["error"])
+            return
+        for reply in result.get("replies", []):
+            self.append_chat(
+                self._display_name(reply.get("from", "")), reply.get("text", "")
+            )
+        self.refresh_costs()
 
     def on_agent_reply(self, result: Any) -> None:
         if not isinstance(result, dict):
@@ -1074,6 +1156,7 @@ class MainWindow(QMainWindow):
         self.refresh_approvals()
         self.refresh_inbox()
         self.refresh_routines()
+        self.refresh_groups()
 
     def _fill_providers(self) -> None:
         self.providers_list.clear()

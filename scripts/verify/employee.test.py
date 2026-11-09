@@ -248,6 +248,25 @@ def main() -> int:
     after = client.get("/api/routines").json()["routines"]
     check("routine removed", len(after) == 0, str(len(after)))
 
+    print("=== 19. a group lets several agents answer together ===")
+    too_small = client.post(
+        "/api/groups", json={"name": "Pair", "participant_ids": ["lead"]}
+    )
+    check("a lone member is rejected", too_small.status_code == 400, str(too_small.status_code))
+    group = client.post(
+        "/api/groups",
+        json={"name": "Pair", "participant_ids": ["lead", "worker"]},
+    ).json()
+    check("group created", bool(group.get("id")), str(group.get("id")))
+    listed_groups = client.get("/api/groups").json()["groups"]
+    check("group listed", len(listed_groups) == 1, str(len(listed_groups)))
+    result = client.post(
+        f"/api/groups/{group['id']}/message",
+        json={"text": "Plan the release", "speaker": "You"},
+    ).json()
+    check("every member replies", len(result.get("replies", [])) == 2,
+          str(result.get("replies"))[:120])
+
     if FAILURES:
         print(f"\n{len(FAILURES)} CHECK(S) FAILED")
         return 1

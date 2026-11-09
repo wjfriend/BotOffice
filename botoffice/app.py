@@ -32,6 +32,7 @@ from .logging_setup import get_logger, setup_logging
 from .memory import MemoryStore
 from .orchestrator.approvals import ApprovalQueue
 from .orchestrator.board import TaskBoard
+from .orchestrator.groups import GroupStore
 from .orchestrator.inbox import Inbox
 from .orchestrator.routines import RoutineRunner, RoutineStore
 from .orchestrator.office import OfficeManager
@@ -76,6 +77,8 @@ class OfficeContext:
         self.routines.load()
         self.routine_runner = RoutineRunner(self.routines, self.run_routine)
         self.routine_runner.start()
+        self.groups = GroupStore(root / "config" / "groups.json")
+        self.groups.load()
         self.ingest = BusIngest(self)
         self.agent_usage: dict[str, dict] = {}
         self.agent_action: dict[str, str] = {}
@@ -295,6 +298,16 @@ class RoutineIn(BaseModel):
     every_minutes: int = 0
     at_hour: int = -1
     at_minute: int = 0
+
+
+class GroupIn(BaseModel):
+    name: str
+    participant_ids: list[str] = Field(default_factory=list)
+
+
+class GroupMessageIn(BaseModel):
+    text: str
+    speaker: str = ""
 
 
 class ApprovalIn(BaseModel):
@@ -691,6 +704,71 @@ def create_app(context: OfficeContext | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         asyncio.create_task(asyncio.to_thread(ctx.run_routine, routine))
         return {"ok": True, "routine": routine.id}
+
+    # ---------------------------------------------------------------- groups
+
+    @app.get("/api/groups")
+    async def list_groups() -> dict:
+        return {"groups": ctx.groups.list()}
+
+    @app.post("/api/groups")
+    async def add_group(payload: GroupIn) -> dict:
+        if not payload.name.strip():
+            raise HTTPException(status_code=400, detail="name is required")
+        members = []
+        for member_id in payload.participant_ids:
+            try:
+                ctx.roles.get(member_id)
+            except KeyError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+            members.append(member_id)
+        if len(members) < 2:
+            raise HTTPException(status_code=400, detail="a group needs at least two members")
+        group = ctx.groups.add(payload.name.strip(), members)
+        ctx.bus.publish("group.added", id=group.id, members=len(members))
+        return group.as_dict()
+
+    @app.delete("/api/groups/{group_id}")
+    async def delete_group(group_id: str) -> dict:
+        if not ctx.groups.remove(group_id):
+            raise HTTPException(status_code=404, detail="unknown group")
+        return {"ok": True}
+
+    @app.post("/api/groups/{group_id}/message")
+    async def group_message(group_id: str, payload: GroupMessageIn) -> dict:
+        """Every member of the group answers, in turn."""
+        try:
+            group = ctx.groups.get(group_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        text = payload.text.strip()
+        if not text:
+            raise HTTPException(status_code=400, detail="text is required")
+
+        ctx.bus.publish("group.message", id=group.id, text=text, speaker=payload.speaker)
+        replies = []
+        for member_id in group.participants:
+            try:
+                role = ctx.roles.get(member_id)
+            except KeyError:
+                continue
+            if role.kind == "user":
+                continue
+            if role.kind == "builtin" and not role.llm.primary:
+                continue
+            instruction = (
+                f"You are in a group chat called {group.name}.\n\n"
+                + (f"{payload.speaker} said: {text}" if payload.speaker else f"The user said: {text}")
+                + "\n\nGive one short point and state what you need from the group."
+            )
+            turn = await ctx.runtime.run(
+                role,
+                instruction,
+                context_blocks=ctx.orchestrator.context_for(role),
+            )
+            ctx.bus.publish("agent.say", id=role.id, text=turn.text)
+            replies.append({"from": role.id, "text": turn.text})
+        return {"group": group.id, "replies": replies}
 
     @app.get("/api/inbox")
     async def list_inbox(unread_only: bool = False) -> dict:
