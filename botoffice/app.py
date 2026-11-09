@@ -83,6 +83,7 @@ class OfficeContext:
         self.agent_usage: dict[str, dict] = {}
         self.agent_action: dict[str, str] = {}
         self.agent_log: dict[str, list[dict]] = {}
+        self.tool_calls: list[dict] = []
         self.bus.subscribe("agent.usage", self._on_usage)
         self.bus.subscribe("agent.say", self._on_say)
         self.bus.subscribe("agent.tool_call", self._on_tool_call)
@@ -137,6 +138,16 @@ class OfficeContext:
         tool = event.get("tool", "")
         if tool:
             self.agent_action[event.get("id", "")] = f"using {tool}"[:80]
+            # Keep a short, global strip of recent tool runs so the chat
+            # can show what the office is executing right now.
+            self.tool_calls.append(
+                {
+                    "id": event.get("id", ""),
+                    "tool": tool,
+                    "ts": event.get("ts"),
+                }
+            )
+            self.tool_calls = self.tool_calls[-30:]
 
     def run_routine(self, routine) -> None:
         """Run one routine as the team lead, off the caller's thread.
@@ -298,6 +309,7 @@ class RoutineIn(BaseModel):
     every_minutes: int = 0
     at_hour: int = -1
     at_minute: int = 0
+    crons: list[str] = Field(default_factory=list)
 
 
 class GroupIn(BaseModel):
@@ -686,6 +698,7 @@ def create_app(context: OfficeContext | None = None) -> FastAPI:
             payload.every_minutes,
             payload.at_hour,
             payload.at_minute,
+            payload.crons,
         )
         ctx.bus.publish("routine.added", id=routine.id, name=routine.name)
         return routine.as_dict()
@@ -769,6 +782,13 @@ def create_app(context: OfficeContext | None = None) -> FastAPI:
             ctx.bus.publish("agent.say", id=role.id, text=turn.text)
             replies.append({"from": role.id, "text": turn.text})
         return {"group": group.id, "replies": replies}
+
+    @app.get("/api/tools/recent")
+    async def recent_tool_calls(limit: int = 20) -> dict:
+        """The latest tool runs, newest first, for the chat strip."""
+        items = list(ctx.tool_calls)
+        items.reverse()
+        return {"tools": items[:limit]}
 
     @app.get("/api/inbox")
     async def list_inbox(unread_only: bool = False) -> dict:

@@ -18,6 +18,59 @@ from pathlib import Path
 CHECK_INTERVAL_SECONDS = 30.0
 
 
+def _minute_floor(moment: "time.struct_time") -> float:
+    """Start of the minute a schedule fired in, so it fires once per minute."""
+    return time.mktime(
+        (moment.tm_year, moment.tm_mon, moment.tm_mday, moment.tm_hour,
+         moment.tm_min, 0, 0, 0, -1)
+    )
+
+
+def _match_field(expression: str, value: int) -> bool:
+    """Match one cron field: * a-b a,b */n and plain numbers."""
+    if expression == "*":
+        return True
+    if "," in expression:
+        return any(_match_field(part, value) for part in expression.split(","))
+    if "/" in expression:
+        base, _, step_text = expression.partition("/")
+        try:
+            step = int(step_text)
+            if step <= 0:
+                return False
+            base_value = value if base == "*" else int(base)
+        except ValueError:
+            return False
+        return value % step == 0 and (base == "*" or base_value <= value)
+    if "-" in expression:
+        low, _, high = expression.partition("-")
+        try:
+            return int(low) <= value <= int(high)
+        except ValueError:
+            return False
+    try:
+        return int(expression) == value
+    except ValueError:
+        return False
+
+
+def cron_matches(expression: str, moment: "time.struct_time") -> bool:
+    """Match a five-field cron expression (minute hour dom month dow)."""
+    fields = expression.split()
+    if len(fields) != 5:
+        return False
+    minute, hour, dom, month, dow = fields
+    # Cron uses 0 for Sunday; struct_time tm_wday is 0 for Monday.
+    sunday_first = (moment.tm_wday + 1) % 7
+    return all((
+        _match_field(minute, moment.tm_min),
+        _match_field(hour, moment.tm_hour),
+        _match_field(dom, moment.tm_mday),
+        _match_field(month, moment.tm_mon),
+        _match_field(dow, sunday_first),
+    ))
+
+
 @dataclass
 class Routine:
     id: str
@@ -26,6 +79,7 @@ class Routine:
     every_minutes: int = 0
     at_hour: int = -1
     at_minute: int = 0
+    crons: list[str] = field(default_factory=list)
     enabled: bool = True
     last_run: float = 0.0
     run_count: int = 0
@@ -35,6 +89,7 @@ class Routine:
         data = asdict(self)
         data["created_at"] = round(self.created_at, 3)
         data["last_run"] = round(self.last_run, 3)
+        data["crons"] = list(self.crons)
         return data
 
 
@@ -80,7 +135,8 @@ class RoutineStore:
             _atomic_write(self.path, json.dumps(payload, ensure_ascii=False, indent=2))
 
     def add(self, name: str, prompt: str, every_minutes: int = 0,
-            at_hour: int = -1, at_minute: int = 0) -> Routine:
+            at_hour: int = -1, at_minute: int = 0,
+            crons: list[str] | None = None) -> Routine:
         routine = Routine(
             id=f"rt-{uuid.uuid4().hex[:8]}",
             name=name,
@@ -88,6 +144,7 @@ class RoutineStore:
             every_minutes=int(every_minutes),
             at_hour=int(at_hour),
             at_minute=int(at_minute),
+            crons=list(crons or []),
         )
         with self._lock:
             self._routines[routine.id] = routine

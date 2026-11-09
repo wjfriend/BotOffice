@@ -537,6 +537,16 @@ class MainWindow(QMainWindow):
         chat_group_row.addWidget(self.btn_new_group)
         chat_layout.addLayout(chat_group_row)
 
+        # Tool chips: what the office is executing right now.
+        tools_title = QLabel(t("chat.tools"))
+        tools_title.setStyleSheet("color:#e6ebf5;font-size:12px;font-weight:600;")
+        chat_layout.addWidget(tools_title)
+        self.tool_chips = QLabel(t("chat.tools_empty"))
+        self.tool_chips.setWordWrap(True)
+        self.tool_chips.setStyleSheet("color:#8fa0b8;font-size:12px;")
+        self.tool_chips.setMinimumHeight(22)
+        chat_layout.addWidget(self.tool_chips)
+
         self.chat_view = QTextEdit()
         self.chat_view.setReadOnly(True)
         self.chat_view.setStyleSheet(
@@ -704,7 +714,10 @@ class MainWindow(QMainWindow):
         self.routine_prompt.setPlaceholderText(t("routines.prompt"))
         self.routine_every = QLineEdit("60")
         self.routine_every.setPlaceholderText(t("routines.every"))
-        for field_edit in (self.routine_name, self.routine_prompt, self.routine_every):
+        self.routine_cron = QLineEdit()
+        self.routine_cron.setPlaceholderText(t("routines.cron"))
+        for field_edit in (self.routine_name, self.routine_prompt, self.routine_every,
+                           self.routine_cron):
             field_edit.setStyleSheet(
                 "background:#151a26;border:1px solid #2e3950;border-radius:8px;"
                 "color:#e6ebf5;padding:6px 8px;font-size:12px;"
@@ -1157,6 +1170,7 @@ class MainWindow(QMainWindow):
         self.refresh_inbox()
         self.refresh_routines()
         self.refresh_groups()
+        self.refresh_tool_chips()
 
     def _fill_providers(self) -> None:
         self.providers_list.clear()
@@ -1334,6 +1348,30 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------- other panels
 
+    # -------------------------------------------------------------- chips
+
+    def refresh_tool_chips(self) -> None:
+        self.office.get("/api/tools/recent?limit=12", self.on_tool_chips)
+
+    def on_tool_chips(self, data: Any) -> None:
+        if not isinstance(data, dict):
+            return
+        items = data.get("tools", [])
+        if not items:
+            self.tool_chips.setText(t("chat.tools_empty"))
+            return
+        chips = []
+        for item in items:
+            tool = html_lib.escape(str(item.get("tool", "")))
+            who = html_lib.escape(self._display_name(str(item.get("id", ""))))
+            chips.append(
+                f"<span style='background:#1f2b4a;border:1px solid #2e3950;"
+                f"border-radius:999px;padding:2px 9px;margin-right:5px;"
+                f"color:#c7d0de;'>{tool}"
+                f"<span style='color:#5c6a82;'> · {who}</span></span>"
+            )
+        self.tool_chips.setText("".join(chips))
+
     # --------------------------------------------------------------- inbox
 
     def refresh_inbox(self) -> None:
@@ -1388,12 +1426,15 @@ class MainWindow(QMainWindow):
         name = self.routine_name.text().strip()
         prompt = self.routine_prompt.text().strip()
         every = self.routine_every.text().strip() or "60"
+        cron_text = self.routine_cron.text().strip()
         if not name or not prompt:
             QMessageBox.warning(self, "BotOffice", t("routines.empty"))
             return
+        crons = [item.strip() for item in cron_text.split(";") if item.strip()]
         self.office.post(
             "/api/routines",
-            {"name": name, "prompt": prompt, "every_minutes": int(every)},
+            {"name": name, "prompt": prompt, "every_minutes": int(every),
+             "crons": crons},
             lambda _result: self.refresh_routines(),
         )
 

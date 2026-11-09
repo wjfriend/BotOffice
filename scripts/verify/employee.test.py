@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+import time
 import tempfile
 from pathlib import Path
 
@@ -266,6 +267,28 @@ def main() -> int:
     ).json()
     check("every member replies", len(result.get("replies", [])) == 2,
           str(result.get("replies"))[:120])
+
+    print("=== 20. cron expressions match the right times ===")
+    from botoffice.orchestrator.routines import cron_matches
+
+    moment = time.strptime("2026-11-09 09:30", "%Y-%m-%d %H:%M")
+    check("exact minute matches", cron_matches("30 9 * * *", moment))
+    check("step matches", cron_matches("*/15 * * * *", moment))
+    check("range matches", cron_matches("30 9-10 * * *", moment))
+    check("list matches", cron_matches("15,30,45 * * * *", moment))
+    check("wrong minute does not match", not cron_matches("45 9 * * *", moment))
+    dow = (moment.tm_wday + 1) % 7
+    check("weekday matches", cron_matches(f"30 9 * * {dow}", moment))
+    check("other weekday does not match",
+          not cron_matches(f"30 9 * * {(dow + 3) % 7}", moment))
+    check("bad expression is rejected", not cron_matches("nope", moment))
+    cron_routine = client.post(
+        "/api/routines",
+        json={"name": "weekly", "prompt": "Summarise the week.",
+              "crons": ["0 9 * * 1"]},
+    ).json()
+    check("cron stored", cron_routine.get("crons") == ["0 9 * * 1"],
+          str(cron_routine.get("crons")))
 
     if FAILURES:
         print(f"\n{len(FAILURES)} CHECK(S) FAILED")

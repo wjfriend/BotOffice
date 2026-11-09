@@ -176,6 +176,8 @@ def main() -> int:
         elif event_type == "agent.state" and agent_id in scene.avatars:
             scene.avatars[agent_id].state = event.get("state", "idle")
             window.refresh_staff()
+        elif event_type == "agent.tool_call":
+            window.refresh_tool_chips()
         elif event_type == "employee.hired":
             window.refresh_all()
         elif event_type in (
