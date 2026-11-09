@@ -2,6 +2,27 @@
 
 ---
 
+## 2026-11-09（第十四轮）— 收件箱
+
+### 改了什么
+
+| 文件 | 变更 |
+|---|---|
+| `botoffice/orchestrator/inbox.py` | **新增**：订阅 `agent.say` / `task.assigned` / `handoff.done`，留存消息并记未读 |
+| `botoffice/app.py` | 新增 `GET /api/inbox`、`POST /api/inbox/read` |
+| `botoffice/gui/main_window.py` / `i18n.py` | 新增 **Inbox 页签**，标题显示未读数，带「Mark all read」 |
+| `scripts/verify/employee.test.py` | 新增：收件箱有消息、初始未读、全部已读后清零 |
+
+### 如何验证
+
+| 项 | 结果 |
+|---|---|
+| `bash scripts/lint.sh` | LINT OK |
+| `scripts/verify/employee.test.py` | ALL CHECKS PASSED（含收件箱） |
+| `scripts/verify/backend.test.py` / `bus.test.py` | ALL CHECKS PASSED |
+
+---
+
 ## 2026-11-09（第十三轮）— 审批队列
 
 ### 改了什么

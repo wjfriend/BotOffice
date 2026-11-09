@@ -308,11 +308,12 @@ class MainWindow(QMainWindow):
     TAB_STAFF = 0
     TAB_TASKS = 1
     TAB_APPROVALS = 2
-    TAB_PLATFORMS = 3
-    TAB_TEAMS = 4
-    TAB_CHAT = 5
-    TAB_MEMORY = 6
-    TAB_COST = 7
+    TAB_INBOX = 3
+    TAB_PLATFORMS = 4
+    TAB_TEAMS = 5
+    TAB_CHAT = 6
+    TAB_MEMORY = 7
+    TAB_COST = 8
 
     def __init__(self, office) -> None:
         super().__init__()
@@ -592,6 +593,26 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(staff_page, t("tab.staff"))
         self.tabs.addTab(self.board_view, t("tab.tasks"))
         self.tabs.addTab(approvals_page, t("tab.approvals"))
+
+        # Inbox page: messages from the office, with an unread count.
+        inbox_page = QWidget()
+        inbox_layout = QVBoxLayout(inbox_page)
+        inbox_layout.setContentsMargins(8, 8, 8, 8)
+        inbox_layout.setSpacing(6)
+        self.inbox_view = QTextEdit()
+        self.inbox_view.setReadOnly(True)
+        self.inbox_view.setStyleSheet(
+            "background:#151a26;border:none;color:#e6ebf5;font-size:12px;"
+        )
+        inbox_layout.addWidget(self.inbox_view, 1)
+        self.btn_mark_read = QPushButton(t("inbox.mark_read"))
+        self.btn_mark_read.setStyleSheet(
+            "background:#222a3d;color:#e6ebf5;border:1px solid #2e3950;"
+            "border-radius:8px;padding:6px 12px;"
+        )
+        self.btn_mark_read.clicked.connect(self.mark_inbox_read)
+        inbox_layout.addWidget(self.btn_mark_read)
+        self.tabs.addTab(inbox_page, t("tab.inbox"))
         self.tabs.addTab(self.providers_list, t("tab.platforms"))
         self.tabs.addTab(teams_page, t("tab.teams"))
         self.tabs.addTab(chat_page, t("tab.chat"))
@@ -824,6 +845,7 @@ class MainWindow(QMainWindow):
         self.refresh_board()
         self.refresh_teams()
         self.refresh_approvals()
+        self.refresh_inbox()
 
     def _fill_providers(self) -> None:
         self.providers_list.clear()
@@ -999,6 +1021,34 @@ class MainWindow(QMainWindow):
         self.activity_view.setHtml(rows)
 
     # ------------------------------------------------------- other panels
+
+    # --------------------------------------------------------------- inbox
+
+    def refresh_inbox(self) -> None:
+        self.office.get("/api/inbox", self.on_inbox)
+
+    def on_inbox(self, data: Any) -> None:
+        if not isinstance(data, dict):
+            return
+        messages = data.get("messages", [])
+        unread = int(data.get("unread") or 0)
+        self.tabs.setTabText(
+            self.TAB_INBOX,
+            t("tab.inbox") + (f" ({unread})" if unread else ""),
+        )
+        if not messages:
+            self.inbox_view.setHtml(f"<p style='color:#93a0b8'>{t('inbox.empty')}</p>")
+            return
+        rows = "".join(
+            f"<p style='margin:4px 0;'>"
+            f"<b style='color:#ffb45e'>{html_lib.escape(str(m.get('sender', '')))}</b>: "
+            f"{html_lib.escape(str(m.get('text', '')))}</p>"
+            for m in messages[:80]
+        )
+        self.inbox_view.setHtml(rows)
+
+    def mark_inbox_read(self) -> None:
+        self.office.post("/api/inbox/read", {}, lambda _result: self.refresh_inbox())
 
     # ----------------------------------------------------------- approvals
 

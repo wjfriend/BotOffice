@@ -30,6 +30,7 @@ from .logging_setup import get_logger, setup_logging
 from .memory import MemoryStore
 from .orchestrator.approvals import ApprovalQueue
 from .orchestrator.board import TaskBoard
+from .orchestrator.inbox import Inbox
 from .orchestrator.office import OfficeManager
 from .orchestrator.roles import Role, RoleRegistry, RoleScope
 from .orchestrator.teams import TeamRegistry
@@ -67,6 +68,7 @@ class OfficeContext:
         )
         self.board = TaskBoard(self.bus)
         self.approvals = ApprovalQueue(self.bus)
+        self.inbox = Inbox(self.bus)
         self.ingest = BusIngest(self)
         self.agent_usage: dict[str, dict] = {}
         self.agent_action: dict[str, str] = {}
@@ -417,6 +419,17 @@ def create_app(context: OfficeContext | None = None) -> FastAPI:
         )
         ctx.hire(role)
         return role.as_dict()
+
+    @app.get("/api/inbox")
+    async def list_inbox(unread_only: bool = False) -> dict:
+        return {
+            "messages": ctx.inbox.list(unread_only),
+            "unread": ctx.inbox.unread(),
+        }
+
+    @app.post("/api/inbox/read")
+    async def mark_inbox_read() -> dict:
+        return {"changed": ctx.inbox.mark_all_read(), "unread": ctx.inbox.unread()}
 
     @app.get("/api/approvals")
     async def list_approvals(status: str | None = "pending") -> dict:

@@ -21,6 +21,7 @@ STRINGS: dict[str, str] = {
     "tab.staff": "Staff",
     "tab.tasks": "Tasks",
     "tab.approvals": "Approvals",
+    "tab.inbox": "Inbox",
     "tab.platforms": "Platforms",
     "tab.teams": "Teams",
     "tab.chat": "Chat",
@@ -145,6 +146,8 @@ STRINGS: dict[str, str] = {
     "approvals.empty": "Nothing is waiting for you.",
     "approvals.approve": "Approve",
     "approvals.reject": "Reject",
+    "inbox.empty": "No messages yet.",
+    "inbox.mark_read": "Mark all read",
     "cost.calls": "calls {calls} | in {tokens_in} | out {tokens_out} | {cost} {currency}",
 }
 

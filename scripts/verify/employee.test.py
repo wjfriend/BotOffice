@@ -181,6 +181,15 @@ def main() -> int:
     general_registry = context.registry_for("general")
     check("teams get separate tool sets", registry is not general_registry)
 
+    print("=== 12. the inbox keeps what agents said ===")
+    inbox = client.get("/api/inbox").json()
+    check("inbox has messages", len(inbox.get("messages", [])) >= 1,
+          str(len(inbox.get("messages", []))))
+    check("messages start unread", inbox.get("unread", 0) >= 1, str(inbox.get("unread")))
+    client.post("/api/inbox/read", json={})
+    after = client.get("/api/inbox").json()
+    check("marking all read clears the count", after.get("unread") == 0, str(after.get("unread")))
+
     if FAILURES:
         print(f"\n{len(FAILURES)} CHECK(S) FAILED")
         return 1
