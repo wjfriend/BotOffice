@@ -551,9 +551,11 @@ class OfficeScene:
         self._sprite(painter, "plant_snake", x0 + 3.0, z1 - 1.6, 1.2)
         self._draw_picture(painter, "z", x0 + 4.2, x0 + 5.8, z0)
 
-        # Plants in a row along the left wall, spaced out.
-        for index in range(4):
-            self._draw_plant(painter, x0 + 1.1, z0 + 2.2 + index * 2.4)
+        # Plants along the back wall and in the corners, spaced out.
+        for offset in (0.0, 3.4, 6.8):
+            self._draw_plant(painter, x0 + 1.1, z0 + 1.2 + offset)
+        self._draw_plant(painter, x1 - 1.4, z0 + 1.2)
+        self._draw_plant(painter, x0 + 1.4, z1 - 1.8)
 
     def _draw_meeting_room(self, painter: QPainter, zone: dict) -> None:
         """A long table with five chairs down each side, behind glass walls."""
@@ -631,8 +633,8 @@ class OfficeScene:
 
         # Mat on the floor.
         painter.setBrush(QBrush(QColor("#c9772f")))
-        painter.setPen(Qt.NoPen)
-        painter.drawPolygon(self._quad(ex - 2.0, ez - 1.8, 4.0, 1.6, 0.8))
+        painter.setPen(QPen(QColor("#a05f22"), 1))
+        painter.drawPolygon(self._quad(ex - 1.7, ez - 3.0, 3.4, 1.4, 0.8))
 
     # ------------------------------------------------------------ geometry
 
@@ -787,9 +789,11 @@ class OfficeScene:
         self._sprite(painter, "plant_snake", x0 + 3.0, z1 - 1.6, 1.2)
         self._draw_picture(painter, "z", x0 + 4.2, x0 + 5.8, z0)
 
-        # Plants in a row along the left wall, spaced out.
-        for index in range(4):
-            self._draw_plant(painter, x0 + 1.1, z0 + 2.2 + index * 2.4)
+        # Plants along the back wall and in the corners, spaced out.
+        for offset in (0.0, 3.4, 6.8):
+            self._draw_plant(painter, x0 + 1.1, z0 + 1.2 + offset)
+        self._draw_plant(painter, x1 - 1.4, z0 + 1.2)
+        self._draw_plant(painter, x0 + 1.4, z1 - 1.8)
 
     def _draw_meeting_room(self, painter: QPainter, zone: dict) -> None:
         """A long table with five chairs down each side, behind glass walls."""
@@ -953,7 +957,7 @@ class OfficeScene:
     def _draw_digital_board(self, painter: QPainter, wall: str, a: float, b: float,
                             coord: float) -> None:
         """A wall screen showing the office numbers."""
-        panel = self._wall_quad(wall, a, b, coord, 30, 96)
+        panel = self._wall_quad(wall, a, b, coord, 26, 106)
         painter.setBrush(QBrush(QColor("#161f2c")))
         painter.setPen(QPen(QColor("#0c121b"), 3))
         painter.drawPolygon(panel)
@@ -971,10 +975,12 @@ class OfficeScene:
                          Qt.AlignLeft | Qt.AlignVCenter, "OFFICE")
         rows = (
             ("Working", str(self.stats.get("working", 0)), QColor("#ffb45e")),
+            ("Waiting", str(self.stats.get("waiting", 0)), QColor("#f2cd37")),
             ("Idle", str(self.stats.get("idle", 0)), QColor("#6fcf97")),
+            ("Offline", str(self.stats.get("offline", 0)), QColor("#93a0b8")),
             ("Cost", f"{self.stats.get('cost', 0):.2f}", QColor("#8ab4f8")),
         )
-        y = rect.top() + 20
+        y = rect.top() + 18
         for label, value, color in rows:
             painter.setPen(QPen(QColor("#93a0b8")))
             painter.drawText(QRectF(rect.left() + 6, y, rect.width() * 0.6, 12),
@@ -983,7 +989,7 @@ class OfficeScene:
             painter.drawText(QRectF(rect.left() + rect.width() * 0.5, y,
                                     rect.width() * 0.45, 12),
                              Qt.AlignRight | Qt.AlignVCenter, value)
-            y += 14
+            y += 13
         painter.restore()
 
     def _draw_poster(self, painter: QPainter, wall: str, a: float, b: float,
@@ -1094,25 +1100,27 @@ class OfficeScene:
     # ----------------------------------------------------------- furniture
 
     def _draw_kitchen(self, painter: QPainter, x: float, z: float) -> None:
-        """The pantry: an L-shaped sofa, a round table, fridge and cooler."""
-        self._shadow(painter, x + 1.6, z + 1.6, 3.4, 3.0)
-        self._box(painter, x + 2.2, z + 3.6, 3.0, 1.0, 15, SOFA, SOFA_DARK)
-        self._box(painter, x + 2.2, z + 3.6, 1.0, 2.4, 15, SOFA, SOFA_DARK)
-        self._box(painter, x + 2.2, z + 4.6, 3.0, 0.35, 26, SOFA, SOFA_DARK)
-        self._box(painter, x + 4.85, z + 3.6, 0.35, 2.4, 26, SOFA, SOFA_DARK)
+        """The pantry: two facing booth seats with a table between them."""
+        self._shadow(painter, x + 2.0, z + 2.0, 3.4, 2.2)
+        # Booth seats facing each other across the table.
+        self._box(painter, x + 0.6, z + 1.2, 0.9, 1.8, 16, SOFA, SOFA_DARK)
+        self._box(painter, x + 0.6, z + 2.6, 0.9, 0.3, 28, SOFA, SOFA_DARK)
+        self._box(painter, x + 3.4, z + 1.2, 0.9, 1.8, 16, SOFA, SOFA_DARK)
+        self._box(painter, x + 3.4, z + 2.6, 0.9, 0.3, 28, SOFA, SOFA_DARK)
 
-        # Round table in the middle of the sofa corner.
-        centre = self.to_screen(x + 3.6, z + 1.4, 16)
+        # Round table in the middle of the booth.
+        centre = self.to_screen(x + 2.1, z + 2.1, 16)
         painter.setBrush(QBrush(DESK_LEG))
         painter.setPen(Qt.NoPen)
         painter.drawEllipse(QPointF(centre.x(), centre.y() + 16),
-                            1.1 * self.tile_w, 0.55 * self.tile_h)
+                            0.7 * self.tile_w, 0.35 * self.tile_h)
         painter.setBrush(QBrush(TABLE))
         painter.setPen(QPen(DESK_LEG, 2))
-        painter.drawEllipse(centre, 1.1 * self.tile_w, 0.55 * self.tile_h)
+        painter.drawEllipse(centre, 0.7 * self.tile_w, 0.35 * self.tile_h)
 
-        self._sprite(painter, "fridge", x + 0.9, z + 4.8, 1.2)
-        self._sprite(painter, "cooler", x + 2.5, z + 4.8, 0.9)
+        # Fridge and cooler against the far wall.
+        self._sprite(painter, "fridge", x + 4.7, z + 0.6, 1.2)
+        self._sprite(painter, "cooler", x + 4.7, z + 2.6, 0.9)
 
     def _draw_water_cooler(self, painter: QPainter, x: float, z: float) -> None:
         if self._sprite(painter, "cooler", x, z, 0.9):
@@ -1170,7 +1178,7 @@ class OfficeScene:
         painter.setPen(QPen(QColor("#a9c6d6"), 1))
         painter.drawPolygon(self._quad(x, z, w, d, 1.0))
 
-        height = WALL_H
+        height = 52.0
         # Front wall with a pair of sliding doors.
         self._sliding_doors(painter, x, z + d, w, height)
         # Left wall; the back is the building's own wall.
@@ -1248,15 +1256,18 @@ class OfficeScene:
             self._draw_desk(painter, item.x, item.z, item.owner)
 
     def _draw_desk(self, painter: QPainter, x: float, z: float, owner: str) -> None:
-        if self._sprite(painter, "desk", x, z + 0.45, 2.6):
+        # A filing cabinet sits beside every workstation.
+        self._sprite(painter, "cabinet", x + 1.4, z + 0.5, 1.0)
+
+        if self._sprite(painter, "desk", x, z + 0.95, 2.6):
             desk_pixmap = self.sprites.get("desk")
-            base = self.to_screen(x, z + 0.45)
+            base = self.to_screen(x, z + 0.95)
             if desk_pixmap is not None:
                 target_w = 2.6 * self.tile_w
                 target_h = desk_pixmap.height() * (target_w / desk_pixmap.width())
                 surface = base.y() - target_h * 0.48
                 self._sprite_at(painter, "monitor", base.x(), surface, 0.95)
-            self._sprite(painter, "chair_visitor", x, z + 0.45, 1.0)
+            self._sprite(painter, "chair_visitor", x, z + 0.95, 1.0)
             return
         self._shadow(painter, x, z + 0.2, 2.2, 1.6)
 

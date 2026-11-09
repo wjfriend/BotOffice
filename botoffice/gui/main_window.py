@@ -331,6 +331,7 @@ class MainWindow(QMainWindow):
         self.activity_lines: list[tuple[str, str]] = []
         self.selected_agent: str | None = None
         self.current_team: str | None = None
+        self.last_total_cost: float = 0.0
         self.selected_group: str = ""
 
         self._build_ui()
@@ -1223,11 +1224,25 @@ class MainWindow(QMainWindow):
         for role_id in list(self.scene_widget.scene.avatars):
             if not any(r["id"] == role_id for r in self.roles):
                 self.scene_widget.scene.remove_avatar(role_id)
-        states = [avatar.state for avatar in self.scene_widget.scene.avatars.values()]
+        self.last_total_cost = float(status.get("total_cost", 0))
+        self.refresh_stats()
+        self.scene_widget.update()
+
+    def refresh_stats(self) -> None:
+        """Keep the wall board in step with the scene.
+
+        The staff panel refreshes on every state change, so the board has to
+        as well, otherwise the two disagree while an agent works.
+        """
+        states = [
+            avatar.state for avatar in self.scene_widget.scene.avatars.values()
+        ]
         self.scene_widget.scene.set_stats({
             "working": sum(1 for state in states if state in ACTIVE_STATES),
+            "waiting": sum(1 for state in states if state == "waiting"),
             "idle": sum(1 for state in states if state == "idle"),
-            "cost": float(status.get("total_cost", 0)),
+            "offline": sum(1 for state in states if state == "offline"),
+            "cost": self.last_total_cost,
         })
         self.scene_widget.update()
 

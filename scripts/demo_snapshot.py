@@ -90,6 +90,8 @@ def main() -> int:
             avatar.bubble_until = time.time() + 6
         elif event_type == "agent.state" and agent_id in scene.avatars:
             scene.avatars[agent_id].state = event.get("state", "idle")
+            window.refresh_staff()
+            window.refresh_stats()
         elif event_type in ("task.created", "task.assigned", "interact.started", "interact.ended"):
             window.refresh_board()
 
