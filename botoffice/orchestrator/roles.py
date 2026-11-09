@@ -93,6 +93,7 @@ class Role:
     llm: ModelBinding = field(default_factory=ModelBinding)
     desk: list[float] = field(default_factory=lambda: [0.0, 0.0])
     avatar: str = ""
+    hidden: bool = False
     external: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:

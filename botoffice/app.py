@@ -8,6 +8,7 @@ The 3D layer connects to the SSE stream and renders events. It may only
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import logging
 from pathlib import Path
@@ -16,6 +17,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
+import yaml
 from pydantic import BaseModel, Field
 
 from .agent.builtin_tools import register_browser_tools, register_tarsier_tools
@@ -240,6 +242,26 @@ class SayIn(BaseModel):
     text: str
 
 
+class ModelIn(BaseModel):
+    primary: str = ""
+    fallback: str = ""
+    prefer_cheap: bool = False
+    budget_tokens: int | None = None
+
+
+class KeyIn(BaseModel):
+    api_key: str
+
+
+class HideIn(BaseModel):
+    hidden: bool = True
+
+
+class TeamImportIn(BaseModel):
+    markdown: str
+    workspace: str = ""
+
+
 class ApprovalIn(BaseModel):
     approved: bool
 
@@ -451,6 +473,154 @@ def create_app(context: OfficeContext | None = None) -> FastAPI:
     @app.get("/api/agents/{agent_id}/log")
     async def agent_log(agent_id: str, limit: int = 100) -> dict:
         return {"log": ctx.agent_log.get(agent_id, [])[-limit:]}
+
+    # ----------------------------------------------------------- model picker
+
+    @app.post("/api/roles/{role_id}/model")
+    async def set_role_model(role_id: str, payload: ModelIn) -> dict:
+        """Switch an employee's model without recreating the employee."""
+        from .llm.router import ModelBinding
+
+        try:
+            role = ctx.roles.get(role_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        role.llm = ModelBinding(
+            primary=payload.primary or role.llm.primary,
+            fallback=payload.fallback or role.llm.fallback,
+            prefer_cheap=payload.prefer_cheap,
+            budget_tokens=payload.budget_tokens or role.llm.budget_tokens,
+        )
+        ctx.roles.save()
+        ctx.bus.publish("role.updated", id=role.id, primary=role.llm.primary)
+        return role.as_dict()
+
+    # ------------------------------------------------------------- secrets
+
+    @app.post("/api/providers/{provider_id}/key")
+    async def set_provider_key(provider_id: str, payload: KeyIn) -> dict:
+        """Set a provider key. No endpoint ever reads the key back."""
+        try:
+            provider = ctx.providers.get(provider_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        provider.api_key = payload.api_key.strip()
+        ctx.providers.add(provider)
+        ctx.bus.publish("provider.updated", id=provider.id)
+        return {"id": provider.id, "api_key_set": bool(provider.api_key)}
+
+    # ------------------------------------------------------- bot management
+
+    @app.post("/api/roles/{role_id}/duplicate")
+    async def duplicate_role(role_id: str) -> dict:
+        try:
+            source = ctx.roles.get(role_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        copy = dataclasses.replace(
+            source,
+            id=f"{source.id}-copy",
+            name=f"{source.name} Copy",
+            hidden=False,
+        )
+        ctx.hire(copy)
+        return copy.as_dict()
+
+    @app.post("/api/roles/{role_id}/hide")
+    async def hide_role(role_id: str, payload: HideIn) -> dict:
+        try:
+            role = ctx.roles.get(role_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        role.hidden = payload.hidden
+        ctx.roles.save()
+        ctx.bus.publish("role.updated", id=role.id, hidden=role.hidden)
+        return role.as_dict()
+
+    # ------------------------------------------------------- team transfer
+
+    @app.get("/api/teams/{team_id}/export")
+    async def export_team(team_id: str) -> dict:
+        """Write a team as a portable Markdown file with YAML frontmatter."""
+        team = ctx.teams.get(team_id)
+        members = [role for role in ctx.roles.list() if role.team == team_id]
+        lines = [
+            "---",
+            f"team: {team.id}",
+            f"name: {team.name or team.id}",
+            f"workspace: {team.workspace}",
+            "members:",
+        ]
+        for member in members:
+            lines += [
+                f"  - id: {member.id}",
+                f"    name: {member.name}",
+                f"    role: {member.role}",
+                f"    kind: {member.kind}",
+                f"    department: {member.department}",
+                f"    runtime: {(member.external or {}).get('runtime', '')}",
+                f"    provider: {member.llm.primary}",
+                f"    responsibilities: {member.responsibilities}",
+            ]
+        lines += [
+            "---",
+            "",
+            f"# Team {team.id}",
+            "",
+            f"{len(members)} employees. Import this file to rebuild the team.",
+        ]
+        return {"filename": f"{team.id}.md", "markdown": "\n".join(lines)}
+
+    @app.post("/api/teams/import")
+    async def import_team(payload: TeamImportIn) -> dict:
+        """Rebuild a team from the Markdown file the export endpoint writes."""
+        from .llm.router import ModelBinding
+
+        text = payload.markdown or ""
+        if not text.startswith("---"):
+            raise HTTPException(status_code=400, detail="expected a --- frontmatter block")
+        try:
+            front = text.split("---", 2)[1]
+            data = yaml.safe_load(front)
+        except yaml.YAMLError as exc:
+            raise HTTPException(status_code=400, detail=f"invalid frontmatter: {exc}") from exc
+        if not isinstance(data, dict) or not data.get("team"):
+            raise HTTPException(status_code=400, detail="frontmatter must declare a team id")
+
+        team_id = str(data["team"])
+        workspace = payload.workspace or str(data.get("workspace") or "")
+        if workspace:
+            ctx.teams.set_workspace(team_id, workspace)
+        else:
+            ctx.teams.get(team_id)
+
+        created: list[str] = []
+        for item in data.get("members") or []:
+            if not isinstance(item, dict) or not item.get("id"):
+                continue
+            runtime = str(item.get("runtime") or "").strip()
+            provider = str(item.get("provider") or "").strip()
+            department = str(item.get("department") or "general")
+            role = Role(
+                id=str(item["id"]),
+                name=str(item.get("name") or item["id"]),
+                role=str(item.get("role") or ""),
+                kind="external" if runtime else "builtin",
+                department=department,
+                team=team_id,
+                responsibilities=str(item.get("responsibilities") or ""),
+                scope=RoleScope(
+                    memory_read=["global", f"dept:{department}", f"private:{item['id']}"],
+                    memory_write=[f"dept:{department}", f"private:{item['id']}"],
+                    tools=[],
+                ),
+                llm=ModelBinding(primary=provider),
+                external={"runtime": runtime} if runtime else {},
+            )
+            ctx.hire(role)
+            created.append(role.id)
+        ctx.bus.publish("team.imported", team=team_id, employees=len(created))
+        return {"team": team_id, "created": created}
 
     @app.get("/api/inbox")
     async def list_inbox(unread_only: bool = False) -> dict:

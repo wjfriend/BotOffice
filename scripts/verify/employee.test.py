@@ -195,6 +195,44 @@ def main() -> int:
     check("the worker has log entries", len(log) >= 1, str(len(log)))
     check("entries carry text", all("text" in entry for entry in log))
 
+    print("=== 14. a model can be switched per employee ===")
+    switched = client.post(
+        "/api/roles/worker/model", json={"primary": "qwen"}
+    ).json()
+    check("model switched", switched.get("llm", {}).get("primary") == "qwen",
+          str(switched.get("llm")))
+
+    print("=== 15. a key can be set and never read back ===")
+    (context.root / "config" / "providers.json").write_text(
+        json.dumps({"providers": [{"id": "mock", "protocol": "mock",
+                                   "base_url": "", "api_key": "", "model": "mock-1"}]}),
+        encoding="utf-8",
+    )
+    client.post("/api/providers/mock/key", json={"api_key": "sk-secret"})
+    listed = client.get("/api/providers").json()["providers"][0]
+    check("key is not returned", "api_key" not in listed, str(listed))
+    check("key is reported as set", listed.get("api_key_set") is True, str(listed))
+
+    print("=== 16. an employee can be duplicated and hidden ===")
+    copied = client.post("/api/roles/worker/duplicate").json()
+    check("duplicate created", copied.get("id") == "worker-copy", str(copied.get("id")))
+    hidden = client.post("/api/roles/worker/hide", json={"hidden": True}).json()
+    check("employee hidden", hidden.get("hidden") is True, str(hidden.get("hidden")))
+
+    print("=== 17. a team exports and imports back ===")
+    exported = client.get("/api/teams/general/export").json()
+    check("export has a filename", exported.get("filename", "").endswith(".md"),
+          str(exported.get("filename")))
+    markdown = exported.get("markdown", "")
+    check("export lists members", "- id:" in markdown, markdown[:60])
+    client.delete("/api/roles/lead")
+    client.delete("/api/roles/worker")
+    client.delete("/api/roles/claude")
+    client.delete("/api/roles/worker-copy")
+    imported = client.post("/api/teams/import", json={"markdown": markdown}).json()
+    check("import recreates the team", len(imported.get("created", [])) >= 1,
+          str(imported.get("created")))
+
     if FAILURES:
         print(f"\n{len(FAILURES)} CHECK(S) FAILED")
         return 1

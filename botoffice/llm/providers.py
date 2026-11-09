@@ -64,10 +64,14 @@ class Provider:
         return self.protocol not in (PROTOCOL_OLLAMA, PROTOCOL_MOCK)
 
     def redacted(self) -> dict:
-        """Serialisable view with the key masked, for API responses and logs."""
+        """Serialisable view without the key.
+
+        The key is write-only: a response only ever says whether one is
+        configured, so a screenshot or a log cannot leak it.
+        """
         data = asdict(self)
-        if data.get("api_key"):
-            data["api_key"] = "***"
+        data.pop("api_key", None)
+        data["api_key_set"] = bool(self.api_key)
         return data
 
 

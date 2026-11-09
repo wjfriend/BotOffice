@@ -34,6 +34,16 @@ STRINGS: dict[str, str] = {
     "chat.send": "Send",
     "chat.you": "You",
     "chat.log": "Live log",
+    "chat.model": "Model",
+    "chat.duplicate": "Duplicate",
+    "chat.hide": "Hide",
+    "chat.show": "Show",
+    "platforms.set_key": "Set key",
+    "platforms.key_done": "Key saved. It is never shown again.",
+    "platforms.key_prompt": "Paste the API key for {name}",
+    "teams.export": "Export",
+    "teams.import": "Import",
+    "msg.no_agent": "Click a character first.",
     # Teams.
     "teams.hint": (
         "Each team works in its own folder. File tools can only touch that folder, "

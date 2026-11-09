@@ -12,13 +12,16 @@ from __future__ import annotations
 
 import html as html_lib
 import time
+from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtWidgets import QFileDialog
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
+    QInputDialog,
     QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
@@ -481,10 +484,36 @@ class MainWindow(QMainWindow):
         chat_layout.setContentsMargins(8, 8, 8, 8)
         chat_layout.setSpacing(6)
 
+        chat_header_row = QHBoxLayout()
+        chat_header_row.setSpacing(6)
         self.chat_header = QLabel(t("chat.no_target"))
         self.chat_header.setWordWrap(True)
         self.chat_header.setStyleSheet("color:#93a0b8;font-size:12px;")
-        chat_layout.addWidget(self.chat_header)
+        chat_header_row.addWidget(self.chat_header, 1)
+
+        self.model_box = QComboBox()
+        self.model_box.setStyleSheet(
+            "background:#151a26;border:1px solid #2e3950;border-radius:8px;"
+            "color:#e6ebf5;padding:4px 8px;font-size:12px;"
+        )
+        self.model_box.currentIndexChanged.connect(self.on_model_changed)
+        chat_header_row.addWidget(self.model_box)
+        chat_layout.addLayout(chat_header_row)
+
+        chat_actions = QHBoxLayout()
+        chat_actions.setSpacing(6)
+        self.btn_duplicate = QPushButton(t("chat.duplicate"))
+        self.btn_duplicate.clicked.connect(self.on_duplicate_agent)
+        self.btn_hide = QPushButton(t("chat.hide"))
+        self.btn_hide.clicked.connect(self.on_hide_agent)
+        for button in (self.btn_duplicate, self.btn_hide):
+            button.setStyleSheet(
+                "background:#222a3d;color:#e6ebf5;border:1px solid #2e3950;"
+                "border-radius:8px;padding:5px 10px;font-size:12px;"
+            )
+            chat_actions.addWidget(button)
+        chat_actions.addStretch(1)
+        chat_layout.addLayout(chat_actions)
 
         self.chat_view = QTextEdit()
         self.chat_view.setReadOnly(True)
@@ -567,6 +596,16 @@ class MainWindow(QMainWindow):
             "padding:6px 14px;font-weight:600;"
         )
         self.btn_save_team.clicked.connect(self.on_save_team)
+        self.btn_export = QPushButton(t("teams.export"))
+        self.btn_export.clicked.connect(self.on_export_team)
+        self.btn_import = QPushButton(t("teams.import"))
+        self.btn_import.clicked.connect(self.on_import_team)
+        for button in (self.btn_export, self.btn_import):
+            button.setStyleSheet(
+                "background:#222a3d;color:#e6ebf5;border:1px solid #2e3950;"
+                "border-radius:8px;padding:6px 12px;"
+            )
+            teams_row.addWidget(button)
         teams_row.addWidget(self.btn_browse)
         teams_row.addWidget(self.btn_save_team)
         teams_layout.addLayout(teams_row)
@@ -624,7 +663,22 @@ class MainWindow(QMainWindow):
         self.btn_mark_read.clicked.connect(self.mark_inbox_read)
         inbox_layout.addWidget(self.btn_mark_read)
         self.tabs.addTab(inbox_page, t("tab.inbox"))
-        self.tabs.addTab(self.providers_list, t("tab.platforms"))
+        platforms_page = QWidget()
+        platforms_layout = QVBoxLayout(platforms_page)
+        platforms_layout.setContentsMargins(8, 8, 8, 8)
+        platforms_layout.setSpacing(6)
+        self.providers_list.setStyleSheet(
+            "background:#151a26;border:none;color:#e6ebf5;font-size:12px;"
+        )
+        platforms_layout.addWidget(self.providers_list, 1)
+        self.btn_set_key = QPushButton(t("platforms.set_key"))
+        self.btn_set_key.setStyleSheet(
+            "background:#222a3d;color:#e6ebf5;border:1px solid #2e3950;"
+            "border-radius:8px;padding:6px 12px;"
+        )
+        self.btn_set_key.clicked.connect(self.on_set_key)
+        platforms_layout.addWidget(self.btn_set_key)
+        self.tabs.addTab(platforms_page, t("tab.platforms"))
         self.tabs.addTab(teams_page, t("tab.teams"))
         self.tabs.addTab(chat_page, t("tab.chat"))
         self.tabs.addTab(self.memory_list, t("tab.memory"))
@@ -763,6 +817,109 @@ class MainWindow(QMainWindow):
             f"<b style='color:#ffb45e'>{html_lib.escape(who)}</b>: {html_lib.escape(text)}"
         )
 
+    # ---------------------------------------------------- model and actions
+
+    def _fill_model_box(self) -> None:
+        self.model_box.blockSignals(True)
+        current = self.model_box.currentData()
+        self.model_box.clear()
+        for provider in self.providers:
+            self.model_box.addItem(
+                provider.get("label") or provider["id"], provider["id"]
+            )
+        index = self.model_box.findData(current)
+        if index >= 0:
+            self.model_box.setCurrentIndex(index)
+        self.model_box.blockSignals(False)
+
+    def on_model_changed(self, index: int) -> None:
+        provider_id = self.model_box.currentData()
+        if not self.selected_agent or not provider_id:
+            return
+        self.office.post(
+            f"/api/roles/{self.selected_agent}/model",
+            {"primary": provider_id},
+            lambda _result: self.refresh_all(),
+        )
+
+    def on_duplicate_agent(self) -> None:
+        if not self.selected_agent:
+            return
+        self.office.post(
+            f"/api/roles/{self.selected_agent}/duplicate",
+            {},
+            lambda _result: self.refresh_all(),
+        )
+
+    def on_hide_agent(self) -> None:
+        if not self.selected_agent:
+            return
+        hidden = not self._agent_hidden()
+        self.office.post(
+            f"/api/roles/{self.selected_agent}/hide",
+            {"hidden": hidden},
+            lambda _result: self.refresh_all(),
+        )
+
+    def _agent_hidden(self) -> bool:
+        for role in self.roles:
+            if role.get("id") == self.selected_agent:
+                return bool(role.get("hidden"))
+        return False
+
+    def on_set_key(self) -> None:
+        provider = self.providers_list.currentItem()
+        if provider is None:
+            return
+        index = self.providers_list.row(provider)
+        if index >= len(self.providers):
+            return
+        target = self.providers[index]
+        key, ok = QInputDialog.getText(
+            self,
+            t("platforms.set_key"),
+            t("platforms.key_prompt", name=target.get("label") or target.get("id")),
+            QLineEdit.Password,
+        )
+        if not ok or not key:
+            return
+        self.office.post(
+            f"/api/providers/{target.get('id')}/key",
+            {"api_key": key},
+            lambda _result: self.refresh_all(),
+        )
+
+    def on_export_team(self) -> None:
+        item = self.teams_list.currentItem()
+        if item is None:
+            return
+        team = item.data(Qt.UserRole) or {}
+        team_id = team.get("id") or "general"
+        self.office.get(f"/api/teams/{team_id}/export", lambda data: self._save_team_file(data))
+
+    def _save_team_file(self, data: Any) -> None:
+        if not isinstance(data, dict):
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, t("teams.export"), data.get("filename", "team.md"), "Markdown (*.md)"
+        )
+        if not path:
+            return
+        Path(path).write_text(data.get("markdown", ""), encoding="utf-8")
+
+    def on_import_team(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, t("teams.import"), "", "Markdown (*.md)"
+        )
+        if not path:
+            return
+        text = Path(path).read_text(encoding="utf-8")
+        self.office.post(
+            "/api/teams/import",
+            {"markdown": text},
+            lambda _result: self.refresh_all(),
+        )
+
     # ---------------------------------------------------------------- chat
 
     def on_avatar_clicked(self, role_id: str) -> None:
@@ -882,6 +1039,7 @@ class MainWindow(QMainWindow):
                 f"{t('field.model')}: {provider.get('model')}"
             )
             self.providers_list.addItem(item)
+        self._fill_model_box()
 
     def _sync_scene(self, status: dict) -> None:
         """Place every role at the desk the backend assigned.
