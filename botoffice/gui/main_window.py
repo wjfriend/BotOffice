@@ -756,6 +756,32 @@ class MainWindow(QMainWindow):
         )
         self.btn_set_key.clicked.connect(self.on_set_key)
         platforms_layout.addWidget(self.btn_set_key)
+
+        mcp_title = QLabel(t("platforms.mcp"))
+        mcp_title.setStyleSheet("color:#e6ebf5;font-size:12px;font-weight:600;")
+        platforms_layout.addWidget(mcp_title)
+
+        self.mcp_list = QListWidget()
+        self.mcp_list.setStyleSheet(
+            "background:#151a26;border:none;color:#e6ebf5;font-size:12px;"
+        )
+        platforms_layout.addWidget(self.mcp_list, 1)
+
+        mcp_row = QHBoxLayout()
+        mcp_row.setSpacing(6)
+        self.btn_mcp_add = QPushButton(t("platforms.mcp_add"))
+        self.btn_mcp_add.clicked.connect(self.on_add_mcp)
+        self.btn_mcp_connect = QPushButton(t("platforms.mcp_connect"))
+        self.btn_mcp_connect.clicked.connect(self.on_connect_mcp)
+        self.btn_mcp_remove = QPushButton(t("platforms.mcp_remove"))
+        self.btn_mcp_remove.clicked.connect(self.on_remove_mcp)
+        for button in (self.btn_mcp_add, self.btn_mcp_connect, self.btn_mcp_remove):
+            button.setStyleSheet(
+                "background:#222a3d;color:#e6ebf5;border:1px solid #2e3950;"
+                "border-radius:8px;padding:6px 12px;font-size:12px;"
+            )
+            mcp_row.addWidget(button)
+        platforms_layout.addLayout(mcp_row)
         self.tabs.addTab(platforms_page, t("tab.platforms"))
         self.tabs.addTab(teams_page, t("tab.teams"))
         self.tabs.addTab(chat_page, t("tab.chat"))
@@ -896,6 +922,70 @@ class MainWindow(QMainWindow):
         )
 
     # ---------------------------------------------------- model and actions
+
+    # ------------------------------------------------------------------ mcp
+
+    def refresh_mcp(self) -> None:
+        self.office.get("/api/mcp", self.on_mcp)
+
+    def on_mcp(self, data: Any) -> None:
+        if not isinstance(data, dict):
+            return
+        self.mcp_list.clear()
+        for server in data.get("servers", []):
+            tools = ", ".join(tool.get("name", "") for tool in server.get("tools", []))
+            state = "connected" if server.get("connected") else "idle"
+            item = QListWidgetItem(
+                f"{server.get('name') or server.get('id')} · "
+                f"{server.get('command')}  [{state}] {tools or 'no tools yet'}"
+            )
+            item.setData(Qt.UserRole, server.get("id"))
+            self.mcp_list.addItem(item)
+
+    def on_add_mcp(self) -> None:
+        server_id, ok = QInputDialog.getText(self, t("platforms.mcp_add"), t("mcp.prompt_id"))
+        if not ok or not server_id.strip():
+            return
+        command, ok = QInputDialog.getText(
+            self, t("platforms.mcp_add"), t("mcp.prompt_command")
+        )
+        if not ok or not command.strip():
+            return
+        args_text, ok = QInputDialog.getText(
+            self, t("platforms.mcp_add"), t("mcp.prompt_args")
+        )
+        if not ok:
+            return
+        self.office.post(
+            "/api/mcp",
+            {"id": server_id.strip(), "command": command.strip(),
+             "args": args_text.split() if args_text.strip() else []},
+            lambda _result: self.refresh_mcp(),
+        )
+
+    def on_connect_mcp(self) -> None:
+        item = self.mcp_list.currentItem()
+        if item is None:
+            QMessageBox.warning(self, "BotOffice", t("mcp.pick"))
+            return
+        server_id = item.data(Qt.UserRole)
+        if not server_id:
+            return
+        self.office.post(
+            f"/api/mcp/{server_id}/connect",
+            {},
+            lambda _result: self.refresh_mcp(),
+        )
+
+    def on_remove_mcp(self) -> None:
+        item = self.mcp_list.currentItem()
+        if item is None:
+            QMessageBox.warning(self, "BotOffice", t("mcp.pick"))
+            return
+        server_id = item.data(Qt.UserRole)
+        if not server_id:
+            return
+        self.office.delete(f"/api/mcp/{server_id}", lambda _result: self.refresh_mcp())
 
     def _fill_model_box(self) -> None:
         self.model_box.blockSignals(True)
@@ -1172,6 +1262,7 @@ class MainWindow(QMainWindow):
         self.refresh_routines()
         self.refresh_groups()
         self.refresh_tool_chips()
+        self.refresh_mcp()
 
     def _fill_providers(self) -> None:
         self.providers_list.clear()
