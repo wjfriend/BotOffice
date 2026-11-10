@@ -436,7 +436,7 @@ class OfficeScene:
         if pixmap is None:
             return False
         if flip:
-            pixmap = pixmap.transformed(QTransform().rotate(180))
+            pixmap = pixmap.transformed(QTransform().scale(-1, 1))
         target_w = max(1.0, world_width * self.tile_w)
         scale = target_w / pixmap.width()
         target_h = pixmap.height() * scale
@@ -447,6 +447,29 @@ class OfficeScene:
             QRectF(pixmap.rect()),
         )
         return True
+
+    def _draw_chair(self, painter: QPainter, x: float, z: float,
+                    size: float = 0.85, facing: int = -1) -> None:
+        """A chair drawn as a seat plus a backrest on the given side.
+
+        The pack only ships one chair orientation, so the far side of a table
+        would face the wrong way. Drawing it lets each row face the table.
+        """
+        centre = self.to_screen(x, z, 4)
+        width = size * self.tile_w
+        height = size * self.tile_h * 0.62
+        painter.setBrush(QBrush(CHAIR))
+        painter.setPen(QPen(CHAIR_DARK, 1))
+        painter.drawRoundedRect(
+            QRectF(centre.x() - width / 2, centre.y() - height / 2, width, height), 3, 3
+        )
+        if facing < 0:
+            back = QRectF(centre.x() - width / 2, centre.y() - height, width, height * 0.55)
+        else:
+            back = QRectF(centre.x() - width / 2, centre.y() + height * 0.45, width, height * 0.55)
+        painter.setBrush(QBrush(CHAIR))
+        painter.setPen(QPen(CHAIR_DARK, 1))
+        painter.drawRoundedRect(back, 3, 3)
 
     def _sprite_at(self, painter: QPainter, name: str, centre_x: float,
                    bottom_y: float, world_width: float) -> bool:
@@ -551,11 +574,11 @@ class OfficeScene:
         self._sprite(painter, "plant_snake", x0 + 3.0, z1 - 1.6, 1.2)
         self._draw_picture(painter, "z", x0 + 4.2, x0 + 5.8, z0)
 
-        # Plants along the back wall and in the corners, spaced out.
-        for offset in (0.0, 3.4, 6.8):
-            self._draw_plant(painter, x0 + 1.1, z0 + 1.2 + offset)
-        self._draw_plant(painter, x1 - 1.4, z0 + 1.2)
-        self._draw_plant(painter, x0 + 1.4, z1 - 1.8)
+        # Plants along the left wall and in the front corner, clear of the
+        # lounge and the pantry.
+        self._draw_plant(painter, x0 + 1.1, z0 + 7.4)
+        self._draw_plant(painter, x0 + 1.1, z0 + 10.0)
+        self._draw_plant(painter, x1 - 1.4, z1 - 1.0)
 
     def _draw_meeting_room(self, painter: QPainter, zone: dict) -> None:
         """A long table with five chairs down each side, behind glass walls."""
@@ -568,10 +591,11 @@ class OfficeScene:
         table_w = w - 3.6
         table_d = 1.4
 
-        # The back row is drawn first so the table hides it.
+        # The back row is drawn first so the table hides it, and it faces
+        # the table just like the near row does.
         for index in range(5):
             cx = table_x + (index + 0.5) * table_w / 5
-            self._sprite(painter, "chair_visitor", cx, table_z - 0.45, 0.95)
+            self._draw_chair(painter, cx, table_z - 0.45, 0.9, facing=+1)
 
         self._shadow(painter, table_x + table_w / 2, table_z + table_d / 2, 4.0, 1.6)
         self._box(painter, table_x, table_z, table_w, table_d, 20, TABLE, DESK_LEG)
@@ -579,7 +603,7 @@ class OfficeScene:
 
         for index in range(5):
             cx = table_x + (index + 0.5) * table_w / 5
-            self._sprite(painter, "chair_visitor", cx, table_z + table_d + 0.55, 0.95)
+            self._draw_chair(painter, cx, table_z + table_d + 0.55, 0.9, facing=-1)
 
         # A whiteboard at the far right of the room.
         self._sprite(painter, "whiteboard", x + w - 2.4, z + 0.9, 1.8)
@@ -674,7 +698,7 @@ class OfficeScene:
         if pixmap is None:
             return False
         if flip:
-            pixmap = pixmap.transformed(QTransform().rotate(180))
+            pixmap = pixmap.transformed(QTransform().scale(-1, 1))
         target_w = max(1.0, world_width * self.tile_w)
         scale = target_w / pixmap.width()
         target_h = pixmap.height() * scale
@@ -685,6 +709,29 @@ class OfficeScene:
             QRectF(pixmap.rect()),
         )
         return True
+
+    def _draw_chair(self, painter: QPainter, x: float, z: float,
+                    size: float = 0.85, facing: int = -1) -> None:
+        """A chair drawn as a seat plus a backrest on the given side.
+
+        The pack only ships one chair orientation, so the far side of a table
+        would face the wrong way. Drawing it lets each row face the table.
+        """
+        centre = self.to_screen(x, z, 4)
+        width = size * self.tile_w
+        height = size * self.tile_h * 0.62
+        painter.setBrush(QBrush(CHAIR))
+        painter.setPen(QPen(CHAIR_DARK, 1))
+        painter.drawRoundedRect(
+            QRectF(centre.x() - width / 2, centre.y() - height / 2, width, height), 3, 3
+        )
+        if facing < 0:
+            back = QRectF(centre.x() - width / 2, centre.y() - height, width, height * 0.55)
+        else:
+            back = QRectF(centre.x() - width / 2, centre.y() + height * 0.45, width, height * 0.55)
+        painter.setBrush(QBrush(CHAIR))
+        painter.setPen(QPen(CHAIR_DARK, 1))
+        painter.drawRoundedRect(back, 3, 3)
 
     def _sprite_at(self, painter: QPainter, name: str, centre_x: float,
                    bottom_y: float, world_width: float) -> bool:
@@ -789,11 +836,11 @@ class OfficeScene:
         self._sprite(painter, "plant_snake", x0 + 3.0, z1 - 1.6, 1.2)
         self._draw_picture(painter, "z", x0 + 4.2, x0 + 5.8, z0)
 
-        # Plants along the back wall and in the corners, spaced out.
-        for offset in (0.0, 3.4, 6.8):
-            self._draw_plant(painter, x0 + 1.1, z0 + 1.2 + offset)
-        self._draw_plant(painter, x1 - 1.4, z0 + 1.2)
-        self._draw_plant(painter, x0 + 1.4, z1 - 1.8)
+        # Plants along the left wall and in the front corner, clear of the
+        # lounge and the pantry.
+        self._draw_plant(painter, x0 + 1.1, z0 + 7.4)
+        self._draw_plant(painter, x0 + 1.1, z0 + 10.0)
+        self._draw_plant(painter, x1 - 1.4, z1 - 1.0)
 
     def _draw_meeting_room(self, painter: QPainter, zone: dict) -> None:
         """A long table with five chairs down each side, behind glass walls."""
@@ -806,10 +853,11 @@ class OfficeScene:
         table_w = w - 3.6
         table_d = 1.4
 
-        # The back row is drawn first so the table hides it.
+        # The back row is drawn first so the table hides it, and it faces
+        # the table just like the near row does.
         for index in range(5):
             cx = table_x + (index + 0.5) * table_w / 5
-            self._sprite(painter, "chair_visitor", cx, table_z - 0.45, 0.95)
+            self._draw_chair(painter, cx, table_z - 0.45, 0.9, facing=+1)
 
         self._shadow(painter, table_x + table_w / 2, table_z + table_d / 2, 4.0, 1.6)
         self._box(painter, table_x, table_z, table_w, table_d, 20, TABLE, DESK_LEG)
@@ -817,7 +865,7 @@ class OfficeScene:
 
         for index in range(5):
             cx = table_x + (index + 0.5) * table_w / 5
-            self._sprite(painter, "chair_visitor", cx, table_z + table_d + 0.55, 0.95)
+            self._draw_chair(painter, cx, table_z + table_d + 0.55, 0.9, facing=-1)
 
         # A whiteboard at the far right of the room.
         self._sprite(painter, "whiteboard", x + w - 2.4, z + 0.9, 1.8)
@@ -1100,27 +1148,28 @@ class OfficeScene:
     # ----------------------------------------------------------- furniture
 
     def _draw_kitchen(self, painter: QPainter, x: float, z: float) -> None:
-        """The pantry: two facing booth seats with a table between them."""
-        self._shadow(painter, x + 2.0, z + 2.0, 3.4, 2.2)
-        # Booth seats facing each other across the table.
-        self._box(painter, x + 0.6, z + 1.2, 0.9, 1.8, 16, SOFA, SOFA_DARK)
-        self._box(painter, x + 0.6, z + 2.6, 0.9, 0.3, 28, SOFA, SOFA_DARK)
-        self._box(painter, x + 3.4, z + 1.2, 0.9, 1.8, 16, SOFA, SOFA_DARK)
-        self._box(painter, x + 3.4, z + 2.6, 0.9, 0.3, 28, SOFA, SOFA_DARK)
+        """The pantry: two facing booth seats, a table between, fridge and cooler."""
+        self._shadow(painter, x + 2.0, z + 2.1, 3.4, 2.2)
+        # Left booth: seat with its backrest on the outer side.
+        self._box(painter, x + 0.7, z + 1.3, 0.9, 1.8, 16, SOFA, SOFA_DARK)
+        self._box(painter, x + 0.35, z + 1.3, 0.35, 1.8, 30, SOFA, SOFA_DARK)
+        # Right booth, facing it across the table.
+        self._box(painter, x + 2.6, z + 1.3, 0.9, 1.8, 16, SOFA, SOFA_DARK)
+        self._box(painter, x + 3.55, z + 1.3, 0.35, 1.8, 30, SOFA, SOFA_DARK)
 
         # Round table in the middle of the booth.
-        centre = self.to_screen(x + 2.1, z + 2.1, 16)
+        centre = self.to_screen(x + 2.05, z + 2.2, 16)
         painter.setBrush(QBrush(DESK_LEG))
         painter.setPen(Qt.NoPen)
         painter.drawEllipse(QPointF(centre.x(), centre.y() + 16),
-                            0.7 * self.tile_w, 0.35 * self.tile_h)
+                            0.55 * self.tile_w, 0.28 * self.tile_h)
         painter.setBrush(QBrush(TABLE))
         painter.setPen(QPen(DESK_LEG, 2))
-        painter.drawEllipse(centre, 0.7 * self.tile_w, 0.35 * self.tile_h)
+        painter.drawEllipse(centre, 0.55 * self.tile_w, 0.28 * self.tile_h)
 
-        # Fridge and cooler against the far wall.
-        self._sprite(painter, "fridge", x + 4.7, z + 0.6, 1.2)
-        self._sprite(painter, "cooler", x + 4.7, z + 2.6, 0.9)
+        # Cooler to the left of the fridge, both against the wall.
+        self._sprite(painter, "fridge", x + 4.8, z + 0.6, 1.2)
+        self._sprite(painter, "cooler", x + 3.9, z + 0.7, 0.9)
 
     def _draw_water_cooler(self, painter: QPainter, x: float, z: float) -> None:
         if self._sprite(painter, "cooler", x, z, 0.9):
@@ -1259,15 +1308,16 @@ class OfficeScene:
         # A filing cabinet sits beside every workstation.
         self._sprite(painter, "cabinet", x + 1.4, z + 0.5, 1.0)
 
-        if self._sprite(painter, "desk", x, z + 0.95, 2.6):
+        if self._sprite(painter, "desk", x, z + 1.05, 2.6):
             desk_pixmap = self.sprites.get("desk")
-            base = self.to_screen(x, z + 0.95)
+            base = self.to_screen(x, z + 1.05)
             if desk_pixmap is not None:
                 target_w = 2.6 * self.tile_w
                 target_h = desk_pixmap.height() * (target_w / desk_pixmap.width())
                 surface = base.y() - target_h * 0.48
                 self._sprite_at(painter, "monitor", base.x(), surface, 0.95)
-            self._sprite(painter, "chair_visitor", x, z + 0.95, 1.0)
+            # The chair sits behind the desk, facing it.
+            self._draw_chair(painter, x, z + 0.35, 0.85, facing=-1)
             return
         self._shadow(painter, x, z + 0.2, 2.2, 1.6)
 
